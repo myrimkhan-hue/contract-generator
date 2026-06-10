@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Генератор договоров</title>
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --surface: #ffffff;
+    --ink: #1a1816;
+    --muted: #6b6760;
+    --line: #e5e1d8;
+    --accent: #2d5b3f;
+    --accent-hover: #234a32;
+    --accent-soft: #e8f0ea;
+    --warn: #b85c2e;
+    --danger: #b83b3b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
+  .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 13px; }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 28px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; }
+  .panel h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; }
+
+  /* Company cards */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
+  .card { border: 1.5px solid var(--line); border-radius: 8px; padding: 14px; cursor: pointer; transition: all 0.15s; background: var(--surface); }
+  .card:hover { border-color: var(--muted); }
+  .card.active { border-color: var(--accent); background: var(--accent-soft); }
+  .card .type { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; font-weight: 600; }
+  .card .name { font-size: 14px; font-weight: 600; }
+  .card.active .type { color: var(--accent); }
+
+  /* Role */
+  .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .role { border: 1.5px solid var(--line); border-radius: 8px; padding: 16px; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .role:hover { border-color: var(--muted); }
+  .role.active { border-color: var(--accent); background: var(--accent-soft); }
+  .role .ico { font-size: 22px; display: block; margin-bottom: 6px; }
+  .role .label { font-size: 14px; font-weight: 600; }
+  .role .desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Form */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .field label .req { color: var(--danger); }
+  .field input, .field select {
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    padding: 9px 11px; border-radius: 6px; font-size: 14px; font-family: inherit;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .field input::placeholder { color: #b3aea4; }
+
+  .actions { display: flex; gap: 10px; margin-top: 8px; }
+  .btn {
+    padding: 11px 20px; border-radius: 7px; font-size: 14px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    font-family: inherit; transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg); }
+  .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Status messages */
+  .status { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 14px; display: none; }
+  .status.show { display: block; }
+  .status.success { background: var(--accent-soft); color: var(--accent); }
+  .status.error { background: #fbecec; color: var(--danger); }
+  .status.warn { background: #fdf3e8; color: var(--warn); }
+
+  /* History */
+  .history-panel { position: sticky; top: 20px; align-self: start; }
+  .history-list { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; }
+  .history-item { border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; font-size: 13px; transition: background 0.15s; }
+  .history-item:hover { background: var(--bg); }
+  .history-item .num { font-weight: 600; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .history-item .meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .history-item .other { font-size: 12px; margin-top: 3px; }
+  .history-item a { color: var(--accent); text-decoration: none; font-size: 12px; font-weight: 500; margin-top: 6px; display: inline-block; }
+  .history-item a:hover { text-decoration: underline; }
+  .history-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
+  .role-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 6px; }
+  .role-tag.customer { background: #e6eef6; color: #2c5282; }
+  .role-tag.executor { background: var(--accent-soft); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Генератор договоров</h1>
+    <span class="sub">Договор о перевозке грузов</span>
+  </header>
+
+  <div class="layout">
+    <div>
+      <!-- Шаг 1: Наша компания -->
+      <div class="panel">
+        <h2><span class="step-num">1</span> Наша компания</h2>
+        <div class="cards" id="company-cards">
+          <div class="card-loading">Загрузка...</div>
+        </div>
+      </div>
+
+      <!-- Шаг 2: Роль -->
+      <div class="panel">
+        <h2><span class="step-num">2</span> Наша роль в договоре</h2>
+        <div class="roles">
+          <div class="role" data-role="executor" onclick="setRole('executor')">
+            <span class="ico">🛠</span>
+            <div class="label">Исполнитель</div>
+            <div class="desc">Мы оказываем услуги</div>
+          </div>
+          <div class="role" data-role="customer" onclick="setRole('customer')">
+            <span class="ico">📋</span>
+            <div class="label">Заказчик</div>
+            <div class="desc">Мы заказываем услуги</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Шаг 3: Вторая сторона -->
+      <div class="panel">
+        <h2><span class="step-num">3</span> Реквизиты второй стороны</h2>
+        <div class="form-grid">
+          <div class="field">
+            <label>Тип <span class="req">*</span></label>
+            <select id="other-type" onchange="updateOtherTypeUI()">
+              <option value="ТОО">ТОО / АО (юр. лицо)</option>
+              <option value="ИП">ИП (индивидуальный предприниматель)</option>
+            </select>
+          </div>
+          <div class="field"></div>
+          <div class="field full">
+            <label id="other-name-label">Полное наименование <span class="req">*</span></label>
+            <input type="text" id="other-name" placeholder='ТОО "Название" или ИП "Название"'>
+          </div>
+          <div class="field">
+            <label>БИН / ИИН <span class="req">*</span></label>
+            <input type="text" id="other-bin" placeholder="123456789012">
+          </div>
+          <div class="field">
+            <label>Должность подписанта <span class="req">*</span></label>
+            <input type="text" id="other-position" placeholder="Директор">
+          </div>
+          <div class="field full">
+            <label>ФИО подписанта (полное) <span class="req">*</span></label>
+            <input type="text" id="other-signer-full" placeholder="Иванов Иван Иванович">
+          </div>
+          <div class="field">
+            <label>ФИО подписанта (сокр.)</label>
+            <input type="text" id="other-signer-short" placeholder="Иванов И. И.">
+          </div>
+          <div class="field" id="other-basis-field">
+            <label>Действует на основании <span class="req">*</span></label>
+            <input type="text" id="other-basis" placeholder="Устава">
+          </div>
+          <div class="field full">
+            <label>Юридический адрес <span class="req">*</span></label>
+            <input type="text" id="other-address" placeholder="г. Алматы, ул. ...">
+          </div>
+          <div class="field">
+            <label>Расчётный счёт (ИИК)</label>
+            <input type="text" id="other-account" placeholder="KZ00 ...">
+          </div>
+          <div class="field">
+            <label>Банк</label>
+            <input type="text" id="other-bank" placeholder='АО "..."'>
+          </div>
+          <div class="field">
+            <label>БИК</label>
+            <input type="text" id="other-bik" placeholder="XXXXKZKX">
+          </div>
+          <div class="field">
+            <label>Телефон</label>
+            <input type="text" id="other-phone" placeholder="+7 ...">
+          </div>
+          <div class="field full">
+            <label>Email</label>
+            <input type="text" id="other-email" placeholder="info@example.kz">
+          </div>
+        </div>
+      </div>
+
+      <!-- Шаг 4: Генерация -->
+      <div class="panel">
+        <h2><span class="step-num">4</span> Сгенерировать договор</h2>
+        <div class="actions">
+          <button class="btn btn-primary" id="gen-btn" onclick="generate()">📄 Создать договор</button>
+          <button class="btn" onclick="resetForm()">Сбросить</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+    </div>
+
+    <!-- Боковая панель: история -->
+    <div class="history-panel">
+      <div class="panel">
+        <h2>Последние договоры</h2>
+        <div class="history-list" id="history-list">
+          <div class="history-empty">История пуста</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let companies = [];
+let selectedCompanyId = null;
+let selectedRole = null;
+
+async function loadCompanies() {
+  const res = await fetch('/api/companies');
+  companies = await res.json();
+  const container = document.getElementById('company-cards');
+  container.innerHTML = companies.map(c => `
+    <div class="card" data-id="${c.id}" onclick="selectCompany('${c.id}')">
+      <div class="type">${c.type}</div>
+      <div class="name">${c.short}</div>
+    </div>
+  `).join('');
+}
+
+function selectCompany(id) {
+  selectedCompanyId = id;
+  document.querySelectorAll('.card').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === id);
+  });
+}
+
+function setRole(r) {
+  selectedRole = r;
+  document.querySelectorAll('.role').forEach(el => {
+    el.classList.toggle('active', el.dataset.role === r);
+  });
+}
+
+function updateOtherTypeUI() {
+  const type = document.getElementById('other-type').value;
+  const nameLabel = document.getElementById('other-name-label');
+  const nameInput = document.getElementById('other-name');
+  const basisField = document.getElementById('other-basis-field');
+  const basisInput = document.getElementById('other-basis');
+
+  if (type === 'ИП') {
+    nameLabel.innerHTML = 'Полное наименование (ИП) <span class="req">*</span>';
+    nameInput.placeholder = 'ИП "Название"';
+    basisInput.placeholder = 'Талона / Свидетельства';
+  } else {
+    nameLabel.innerHTML = 'Полное наименование <span class="req">*</span>';
+    nameInput.placeholder = 'ТОО "Название"';
+    basisInput.placeholder = 'Устава';
+  }
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.className = 'status show ' + type;
+  el.textContent = msg;
+  if (type === 'success') {
+    setTimeout(() => el.classList.remove('show'), 5000);
+  }
+}
+
+function val(id) { return document.getElementById(id).value.trim(); }
+
+async function generate() {
+  // Валидация
+  if (!selectedCompanyId) return showStatus('Выберите нашу компанию (шаг 1).', 'warn');
+  if (!selectedRole) return showStatus('Выберите нашу роль в договоре (шаг 2).', 'warn');
+
+  const required = [
+    ['other-name', 'название второй стороны'],
+    ['other-bin', 'БИН/ИИН'],
+    ['other-position', 'должность подписанта'],
+    ['other-signer-full', 'полное ФИО подписанта'],
+    ['other-basis', 'основание (Устав/Талон)'],
+    ['other-address', 'юридический адрес'],
+  ];
+  for (const [id, label] of required) {
+    if (!val(id)) return showStatus(`Заполните: ${label}.`, 'warn');
+  }
+
+  const other = {
+    type: val('other-type'),
+    name: val('other-name'),
+    bin: val('other-bin'),
+    position: val('other-position'),
+    signerFull: val('other-signer-full'),
+    signerShort: val('other-signer-short') || val('other-signer-full'),
+    basis: val('other-basis'),
+    address: val('other-address'),
+    account: val('other-account') || '—',
+    bank: val('other-bank') || '—',
+    bik: val('other-bik') || '—',
+    phone: val('other-phone') || '—',
+    email: val('other-email') || '—',
+  };
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Генерация...';
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ourCompanyId: selectedCompanyId, ourRole: selectedRole, other })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Не удалось сгенерировать договор');
+    }
+
+    const blob = await res.blob();
+    const contractNumber = res.headers.get('X-Contract-Number') || '';
+    const disposition = res.headers.get('Content-Disposition') || '';
+    let filename = `Договор_${contractNumber}.docx`;
+    const m = disposition.match(/filename\*=UTF-8''([^;]+)/);
+    if (m) filename = decodeURIComponent(m[1]);
+
+    // Скачать
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showStatus(`✓ Договор ${contractNumber} сгенерирован и скачан.`, 'success');
+    loadHistory();
+  } catch (err) {
+    showStatus('Ошибка: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📄 Создать договор';
+  }
+}
+
+function resetForm() {
+  selectedCompanyId = null;
+  selectedRole = null;
+  document.querySelectorAll('.card, .role').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('input').forEach(el => el.value = '');
+  document.getElementById('other-type').value = 'ТОО';
+  updateOtherTypeUI();
+  document.getElementById('status').classList.remove('show');
+}
+
+async function loadHistory() {
+  const res = await fetch('/api/history');
+  const items = await res.json();
+  const container = document.getElementById('history-list');
+  if (items.length === 0) {
+    container.innerHTML = '<div class="history-empty">История пуста</div>';
+    return;
+  }
+  container.innerHTML = items.map(item => {
+    const d = new Date(item.date);
+    const dateStr = d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const roleLabel = item.ourRole === 'customer' ? 'Заказчик' : 'Исполнитель';
+    return `
+      <div class="history-item">
+        <div class="num">${item.number}<span class="role-tag ${item.ourRole}">${roleLabel}</span></div>
+        <div class="meta">${dateStr} · ${item.ourCompany}</div>
+        <div class="other">↔ ${item.otherName}</div>
+        <a href="/api/history/${encodeURIComponent(item.filename)}" download>↓ Скачать</a>
+      </div>
+    `;
+  }).join('');
+}
+
+loadCompanies();
+loadHistory();
+</script>
+</body>
+</html>
