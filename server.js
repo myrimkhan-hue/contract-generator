@@ -262,6 +262,177 @@ app.get('/api/history/:filename', (req, res) => {
   res.send(buffer);
 });
 
+// === Заявки ===
+
+const ZAYAVKA_TEMPLATE_PATH = path.join(__dirname, 'template_zayavka.docx');
+
+function amountToWords(n) {
+  n = parseInt(n);
+  if (isNaN(n) || n === 0) return 'ноль';
+  const onesM = ['','один','два','три','четыре','пять','шесть','семь','восемь','девять',
+    'десять','одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать',
+    'шестнадцать','семнадцать','восемнадцать','девятнадцать'];
+  const onesF = ['','одна','две','три','четыре','пять','шесть','семь','восемь','девять',
+    'десять','одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать',
+    'шестнадцать','семнадцать','восемнадцать','девятнадцать'];
+  const tens = ['','','двадцать','тридцать','сорок','пятьдесят','шестьдесят','семьдесят','восемьдесят','девяносто'];
+  const hundreds = ['','сто','двести','триста','четыреста','пятьсот','шестьсот','семьсот','восемьсот','девятьсот'];
+  function plural(n, one, two, five) {
+    const m = n % 100;
+    if (m >= 11 && m <= 19) return five;
+    const m10 = n % 10;
+    if (m10 === 1) return one;
+    if (m10 >= 2 && m10 <= 4) return two;
+    return five;
+  }
+  function chunk(n, fem) {
+    if (n === 0) return '';
+    const ones = fem ? onesF : onesM;
+    let s = '';
+    const h = Math.floor(n / 100);
+    const r = n % 100;
+    if (h) s += hundreds[h] + ' ';
+    if (r < 20 && r > 0) { s += ones[r] + ' '; }
+    else if (r >= 20) {
+      s += tens[Math.floor(r / 10)] + ' ';
+      if (r % 10) s += ones[r % 10] + ' ';
+    }
+    return s;
+  }
+  const mil = Math.floor(n / 1e6);
+  const tho = Math.floor((n % 1e6) / 1e3);
+  const rem = n % 1e3;
+  let result = '';
+  if (mil) result += chunk(mil) + plural(mil, 'миллион', 'миллиона', 'миллионов') + ' ';
+  if (tho) result += chunk(tho, true) + plural(tho, 'тысяча', 'тысячи', 'тысяч') + ' ';
+  if (rem) result += chunk(rem);
+  return result.trim();
+}
+
+function formatAmount(n) {
+  return parseInt(n).toLocaleString('ru-RU').replace(/ /g, ' ');
+}
+
+function generateZayavkaNumber(companyPrefix) {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  return `${companyPrefix}-Z-${dd}${mm}/${yyyy}`;
+}
+
+app.post('/api/generate-zayavka', (req, res) => {
+  try {
+    const { ourCompanyId, manager, cargo, loading, unloading, executor, payment } = req.body;
+
+    if (!ourCompanyId || !OUR_COMPANIES[ourCompanyId]) {
+      return res.status(400).json({ error: 'Не выбрана наша компания.' });
+    }
+    if (!executor || !executor.name) {
+      return res.status(400).json({ error: 'Не введено название исполнителя.' });
+    }
+
+    const our = OUR_COMPANIES[ourCompanyId];
+    const zayavkaNumber = generateZayavkaNumber(our.prefix);
+    const dateStr = formatDateRu(new Date());
+    const amountNum = parseInt(payment.amount) || 0;
+
+    const values = {
+      'НОМЕР_ЗАЯВКИ': zayavkaNumber,
+      'ДАТА_ЗАЯВКИ': dateStr,
+
+      'ЗАКАЗЧИК_НАЗВАНИЕ': our.name,
+      'ЗАКАЗЧИК_КРАТКОЕ': our.short,
+      'ЗАКАЗЧИК_ПОДПИСАНТ': our.signerFull,
+      'ЗАКАЗЧИК_ДОЛЖНОСТЬ': our.position,
+      'ЗАКАЗЧИК_ОСНОВАНИЕ': our.basis,
+      'ЗАКАЗЧИК_АДРЕС': our.address,
+      'ЗАКАЗЧИК_БИН': our.bin,
+      'ЗАКАЗЧИК_БАНК': our.bank,
+      'ЗАКАЗЧИК_БИК': our.bik,
+      'ЗАКАЗЧИК_СЧЕТ': our.account,
+      'ЗАКАЗЧИК_ТЕЛЕФОН': our.phone,
+      'ЗАКАЗЧИК_EMAIL': our.email,
+      'ЗАКАЗЧИК_ПОДПИСАНТ_КРАТКО': our.signerShort,
+      'ЗАКАЗЧИК_МЕНЕДЖЕР': (manager && manager.name) || '—',
+      'ЗАКАЗЧИК_МЕНЕДЖЕР_ТЕЛ': (manager && manager.phone) || '—',
+
+      'ГРУЗООТПРАВИТЕЛЬ': (cargo && cargo.shipper) || '—',
+      'ГРУЗОПОЛУЧАТЕЛЬ': (cargo && cargo.consignee) || '—',
+      'МАРШРУТ': (cargo && cargo.route) || '—',
+      'НАИМЕНОВАНИЕ_ГРУЗА': (cargo && cargo.name) || '—',
+      'КОЛ_МЕСТ': (cargo && cargo.qty) || '—',
+      'ГАБАРИТЫ': (cargo && cargo.dimensions) || 'Согласно ТТН',
+
+      'ДАТА_ПОГРУЗКИ': (loading && loading.datetime) || '—',
+      'АДРЕС_ПОГРУЗКИ': (loading && loading.address) || '—',
+      'КОНТАКТ_ПОГРУЗКИ': (loading && loading.contact) || '—',
+
+      'АДРЕС_РАЗГРУЗКИ': (unloading && unloading.address) || '—',
+      'КОНТАКТ_РАЗГРУЗКИ': (unloading && unloading.contact) || '—',
+
+      'ИСПОЛНИТЕЛЬ_НАЗВАНИЕ': executor.name || '—',
+      'ИСПОЛНИТЕЛЬ_ТИП': executor.type || 'ИП',
+      'ИСПОЛНИТЕЛЬ_ДОЛЖНОСТЬ': executor.position || 'Директор',
+      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ': executor.signerFull || '—',
+      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ_КРАТКО': executor.signerShort || executor.signerFull || '—',
+      'ИСПОЛНИТЕЛЬ_ОСНОВАНИЕ': executor.basis || '—',
+      'ИСПОЛНИТЕЛЬ_КОНТАКТ': executor.contact || '—',
+      'ДАННЫЕ_АМ': executor.vehicle || '—',
+      'ДАННЫЕ_ВОДИТЕЛЯ': executor.driver || '—',
+      'ИСПОЛНИТЕЛЬ_ИИН': executor.bin || '—',
+      'ИСПОЛНИТЕЛЬ_АДРЕС': executor.address || '—',
+      'ИСПОЛНИТЕЛЬ_БАНК': executor.bank || '—',
+      'ИСПОЛНИТЕЛЬ_БИК': executor.bik || '—',
+      'ИСПОЛНИТЕЛЬ_СЧЕТ': executor.account || '—',
+      'ИСПОЛНИТЕЛЬ_ТАЛОН': executor.talon || '—',
+
+      'СТОИМОСТЬ_ЦИФРАМИ': amountNum ? formatAmount(amountNum) : '—',
+      'СТОИМОСТЬ_ПРОПИСЬЮ': amountNum ? amountToWords(amountNum) : '—',
+      'СПОСОБ_ОПЛАТЫ': (payment && payment.method) || '—',
+      'УСЛОВИЯ_ОПЛАТЫ': (payment && payment.conditions) || '—',
+      'ДОКУМЕНТЫ': (payment && payment.documents) || 'ТТН',
+      'ПРИМЕЧАНИЕ': (payment && payment.notes) || '—',
+    };
+
+    const zip = new AdmZip(ZAYAVKA_TEMPLATE_PATH);
+    const docXmlEntry = zip.getEntry('word/document.xml');
+    let xml = docXmlEntry.getData().toString('utf-8');
+    for (const [key, value] of Object.entries(values)) {
+      xml = xml.split(`{${key}}`).join(escapeXml(value));
+    }
+    zip.updateFile('word/document.xml', Buffer.from(xml, 'utf-8'));
+    const buffer = zip.toBuffer();
+
+    const safeExec = (executor.name || 'исполнитель').replace(/[^\wа-яА-Я\- ]/g, '').replace(/\s+/g, '_').slice(0, 40);
+    const safeNumber = zayavkaNumber.replace(/\//g, '-');
+    const filename = `Заявка_${safeNumber}_${safeExec}.docx`;
+
+    archiveBuffers[filename] = buffer;
+    history.unshift({
+      type: 'zayavka',
+      number: zayavkaNumber,
+      date: new Date().toISOString(),
+      ourCompany: our.short,
+      otherName: executor.name,
+      route: (cargo && cargo.route) || '',
+      filename,
+    });
+    while (history.length > MAX_HISTORY) {
+      const old = history.pop();
+      delete archiveBuffers[old.filename];
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('X-Zayavka-Number', zayavkaNumber);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Ошибка генерации заявки:', err);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера: ' + err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`✓ Сервер запущен: http://localhost:${PORT}`);
 });
