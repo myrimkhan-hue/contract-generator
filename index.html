@@ -216,12 +216,27 @@
       <!-- ====== ЗАЯВКА ====== -->
       <div id="tab-zayavka" style="display:none">
 
+        <!-- Шаг 1: Наша компания + роль -->
         <div class="panel">
-          <h2><span class="step-num">1</span> Наша компания (Заказчик)</h2>
+          <h2><span class="step-num">1</span> Наша компания и роль</h2>
           <div class="cards" id="z-company-cards">
             <div class="card-loading">Загрузка...</div>
           </div>
-          <div class="form-grid" style="margin-top:14px">
+          <div class="roles" style="margin-top:14px">
+            <div class="role" data-zrole="customer" onclick="setZRole('customer')">
+              <span class="ico">📋</span>
+              <div class="label">Мы Заказчик</div>
+              <div class="desc">Нанимаем перевозчика</div>
+            </div>
+            <div class="role" data-zrole="executor" onclick="setZRole('executor')">
+              <span class="ico">🚛</span>
+              <div class="label">Мы Исполнитель</div>
+              <div class="desc">Оказываем услугу перевозки</div>
+            </div>
+          </div>
+
+          <!-- Менеджер (только когда Заказчик) -->
+          <div id="z-manager-block" class="form-grid" style="margin-top:14px;display:none">
             <div class="field">
               <label>Менеджер (ФИО)</label>
               <input type="text" id="z-manager-name" placeholder="Наталья Кудиярова">
@@ -231,8 +246,25 @@
               <input type="text" id="z-manager-phone" placeholder="+7 701 363 19 63">
             </div>
           </div>
+
+          <!-- Наши данные рейса (только когда Исполнитель) -->
+          <div id="z-own-trip-block" class="form-grid" style="margin-top:14px;display:none">
+            <div class="field full">
+              <label>Наш контакт по рейсу (имя, телефон)</label>
+              <input type="text" id="z-own-contact" placeholder="Айдин +7 776 650 3100">
+            </div>
+            <div class="field full">
+              <label>Данные а/м (номера) <span class="req">*</span></label>
+              <input type="text" id="z-own-vehicle" placeholder="767AMD05 / 54AEL05">
+            </div>
+            <div class="field full">
+              <label>Данные водителя (ФИО, ИИН, №у/л, когда и кем выдано) <span class="req">*</span></label>
+              <textarea id="z-own-driver" placeholder="Мусадинов Айдин Сабирович, ИИН 831210301590, УД № 056403979 выдано МВД HR от 02.05.2024г"></textarea>
+            </div>
+          </div>
         </div>
 
+        <!-- Шаг 2: Детали перевозки (всегда) -->
         <div class="panel">
           <h2><span class="step-num">2</span> Детали перевозки</h2>
           <div class="form-grid">
@@ -263,6 +295,7 @@
           </div>
         </div>
 
+        <!-- Шаг 3: Погрузка/разгрузка (всегда) -->
         <div class="panel">
           <h2><span class="step-num">3</span> Погрузка и разгрузка</h2>
           <div class="form-grid">
@@ -289,7 +322,8 @@
           </div>
         </div>
 
-        <div class="panel">
+        <!-- Шаг 4: Исполнитель (только когда Заказчик) -->
+        <div class="panel" id="z-panel-executor" style="display:none">
           <h2><span class="step-num">4</span> Исполнитель</h2>
           <div class="form-grid">
             <div class="field">
@@ -334,7 +368,8 @@
           </div>
         </div>
 
-        <div class="panel">
+        <!-- Шаг 5: Реквизиты исполнителя (только когда Заказчик) -->
+        <div class="panel" id="z-panel-exec-bank" style="display:none">
           <h2><span class="step-num">5</span> Реквизиты исполнителя</h2>
           <div class="form-grid">
             <div class="field">
@@ -364,8 +399,75 @@
           </div>
         </div>
 
+        <!-- Шаг 4: Заказчик (другая сторона, только когда Исполнитель) -->
+        <div class="panel" id="z-panel-customer-party" style="display:none">
+          <h2><span class="step-num">4</span> Заказчик (другая сторона)</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Тип</label>
+              <select id="z-cust-type">
+                <option value="ТОО">ТОО / АО</option>
+                <option value="ИП">ИП</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Должность подписанта</label>
+              <input type="text" id="z-cust-position" placeholder="Генеральный директор">
+            </div>
+            <div class="field full">
+              <label>Название <span class="req">*</span></label>
+              <input type="text" id="z-cust-name" placeholder='ТОО "Название компании"'>
+            </div>
+            <div class="field full">
+              <label>ФИО подписанта <span class="req">*</span></label>
+              <input type="text" id="z-cust-signer-full" placeholder="Иванов Иван Иванович">
+            </div>
+            <div class="field">
+              <label>ФИО кратко</label>
+              <input type="text" id="z-cust-signer-short" placeholder="Иванов И. И.">
+            </div>
+            <div class="field">
+              <label>Действует на основании</label>
+              <input type="text" id="z-cust-basis" placeholder="Устава">
+            </div>
+            <div class="field">
+              <label>Менеджер (имя)</label>
+              <input type="text" id="z-cust-manager" placeholder="Наталья">
+            </div>
+            <div class="field">
+              <label>Телефон менеджера</label>
+              <input type="text" id="z-cust-manager-phone" placeholder="+7 701 363 19 63">
+            </div>
+            <div class="field">
+              <label>БИН / ИИН</label>
+              <input type="text" id="z-cust-bin" placeholder="123456789012">
+            </div>
+            <div class="field">
+              <label>Телефон / Email</label>
+              <input type="text" id="z-cust-phone" placeholder="+7 ...">
+            </div>
+            <div class="field full">
+              <label>Юридический адрес</label>
+              <input type="text" id="z-cust-address" placeholder="г. Алматы, ул. ...">
+            </div>
+            <div class="field full">
+              <label>Банк</label>
+              <input type="text" id="z-cust-bank" placeholder='АО "..."'>
+            </div>
+            <div class="field">
+              <label>БИК</label>
+              <input type="text" id="z-cust-bik" placeholder="XXXXKZKX">
+            </div>
+            <div class="field">
+              <label>ИИК (расчётный счёт)</label>
+              <input type="text" id="z-cust-account" placeholder="KZ00 ...">
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 6: Оплата (всегда) -->
         <div class="panel">
-          <h2><span class="step-num">6</span> Оплата и условия</h2>
+          <h2><span class="step-num" id="z-step-payment">6</span> Оплата и условия</h2>
           <div class="form-grid">
             <div class="field full">
               <label>Стоимость транспортировки (тенге, цифрами) <span class="req">*</span></label>
@@ -391,7 +493,7 @@
         </div>
 
         <div class="panel">
-          <h2><span class="step-num">7</span> Сгенерировать заявку</h2>
+          <h2><span class="step-num" id="z-step-gen">7</span> Сгенерировать заявку</h2>
           <div class="actions">
             <button class="btn btn-primary" id="z-gen-btn" onclick="generateZayavka()">🚚 Создать заявку</button>
             <button class="btn" onclick="resetZayavkaForm()">Сбросить</button>
@@ -419,6 +521,7 @@ let companies = [];
 let selectedCompanyId = null;
 let selectedRole = null;
 let zSelectedCompanyId = null;
+let zayavkaRole = null; // 'customer' | 'executor'
 
 // === Вкладки ===
 function switchTab(tab) {
@@ -506,6 +609,19 @@ function updateZExecType() {
   }
 }
 
+function setZRole(role) {
+  zayavkaRole = role;
+  document.querySelectorAll('[data-zrole]').forEach(el => {
+    el.classList.toggle('active', el.dataset.zrole === role);
+  });
+  const isExec = role === 'executor';
+  document.getElementById('z-manager-block').style.display      = isExec ? 'none' : '';
+  document.getElementById('z-own-trip-block').style.display     = isExec ? '' : 'none';
+  document.getElementById('z-panel-executor').style.display     = isExec ? 'none' : '';
+  document.getElementById('z-panel-exec-bank').style.display    = isExec ? 'none' : '';
+  document.getElementById('z-panel-customer-party').style.display = isExec ? '' : 'none';
+}
+
 function showStatus(id, msg, type) {
   const el = document.getElementById(id);
   el.className = 'status show ' + type;
@@ -586,8 +702,12 @@ function resetForm() {
 // === Заявка ===
 async function generateZayavka() {
   if (!zSelectedCompanyId) return showStatus('z-status', 'Выберите нашу компанию (шаг 1).', 'warn');
+  if (!zayavkaRole) return showStatus('z-status', 'Выберите роль: Заказчик или Исполнитель (шаг 1).', 'warn');
 
-  const required = [
+  const isExec = zayavkaRole === 'executor';
+
+  // Общие обязательные поля
+  const commonRequired = [
     ['z-shipper', 'грузоотправитель'],
     ['z-consignee', 'грузополучатель'],
     ['z-route', 'маршрут перевозки'],
@@ -595,57 +715,86 @@ async function generateZayavka() {
     ['z-loading-datetime', 'дата и время погрузки'],
     ['z-loading-address', 'адрес погрузки'],
     ['z-unloading-address', 'адрес разгрузки'],
-    ['z-exec-name', 'название исполнителя'],
-    ['z-exec-signer-full', 'ФИО подписанта исполнителя'],
     ['z-amount', 'стоимость транспортировки'],
   ];
-  for (const [id, label] of required) {
+  for (const [id, label] of commonRequired) {
     if (!val(id)) return showStatus('z-status', `Заполните: ${label}.`, 'warn');
+  }
+
+  if (isExec) {
+    if (!val('z-cust-name')) return showStatus('z-status', 'Заполните: название Заказчика.', 'warn');
+    if (!val('z-own-vehicle')) return showStatus('z-status', 'Заполните: данные а/м.', 'warn');
+  } else {
+    if (!val('z-exec-name')) return showStatus('z-status', 'Заполните: название Исполнителя.', 'warn');
+    if (!val('z-exec-signer-full')) return showStatus('z-status', 'Заполните: ФИО подписанта Исполнителя.', 'warn');
   }
 
   const payload = {
     ourCompanyId: zSelectedCompanyId,
+    ourRole: zayavkaRole,
     manager: { name: val('z-manager-name'), phone: val('z-manager-phone') },
+    // Другая сторона как Заказчик (когда мы Исполнитель)
+    customer: {
+      type:        val('z-cust-type'),
+      name:        val('z-cust-name'),
+      position:    val('z-cust-position') || 'Директор',
+      signerFull:  val('z-cust-signer-full'),
+      signerShort: val('z-cust-signer-short') || val('z-cust-signer-full'),
+      basis:       val('z-cust-basis'),
+      manager:     val('z-cust-manager'),
+      managerPhone: val('z-cust-manager-phone'),
+      bin:     val('z-cust-bin'),
+      phone:   val('z-cust-phone'),
+      address: val('z-cust-address'),
+      bank:    val('z-cust-bank'),
+      bik:     val('z-cust-bik'),
+      account: val('z-cust-account'),
+    },
     cargo: {
-      shipper: val('z-shipper'),
-      consignee: val('z-consignee'),
-      route: val('z-route'),
-      name: val('z-cargo-name'),
-      qty: val('z-qty'),
+      shipper:    val('z-shipper'),
+      consignee:  val('z-consignee'),
+      route:      val('z-route'),
+      name:       val('z-cargo-name'),
+      qty:        val('z-qty'),
       dimensions: val('z-dimensions') || 'Согласно ТТН',
     },
     loading: {
       datetime: val('z-loading-datetime'),
-      address: val('z-loading-address'),
-      contact: val('z-loading-contact'),
+      address:  val('z-loading-address'),
+      contact:  val('z-loading-contact'),
     },
     unloading: {
       address: val('z-unloading-address'),
       contact: val('z-unloading-contact'),
     },
-    executor: {
-      type: val('z-exec-type'),
-      name: val('z-exec-name'),
-      position: val('z-exec-position') || 'Директор',
-      signerFull: val('z-exec-signer-full'),
+    // Исполнитель: либо другая сторона (мы Заказчик), либо наши данные рейса (мы Исполнитель)
+    executor: isExec ? {
+      contact: val('z-own-contact'),
+      vehicle: val('z-own-vehicle'),
+      driver:  val('z-own-driver'),
+    } : {
+      type:        val('z-exec-type'),
+      name:        val('z-exec-name'),
+      position:    val('z-exec-position') || 'Директор',
+      signerFull:  val('z-exec-signer-full'),
       signerShort: val('z-exec-signer-short') || val('z-exec-signer-full'),
-      basis: val('z-exec-basis'),
-      contact: val('z-exec-contact'),
-      vehicle: val('z-vehicle'),
-      driver: val('z-driver'),
-      bin: val('z-exec-bin'),
-      address: val('z-exec-address'),
-      bank: val('z-exec-bank'),
-      bik: val('z-exec-bik'),
-      account: val('z-exec-account'),
-      talon: val('z-exec-talon'),
+      basis:       val('z-exec-basis'),
+      contact:     val('z-exec-contact'),
+      vehicle:     val('z-vehicle'),
+      driver:      val('z-driver'),
+      bin:         val('z-exec-bin'),
+      address:     val('z-exec-address'),
+      bank:        val('z-exec-bank'),
+      bik:         val('z-exec-bik'),
+      account:     val('z-exec-account'),
+      talon:       val('z-exec-talon'),
     },
     payment: {
-      amount: val('z-amount'),
-      method: val('z-payment-method'),
+      amount:     val('z-amount'),
+      method:     val('z-payment-method'),
       conditions: val('z-payment-conditions'),
-      documents: val('z-documents'),
-      notes: val('z-notes'),
+      documents:  val('z-documents'),
+      notes:      val('z-notes'),
     },
   };
 
@@ -677,7 +826,14 @@ async function generateZayavka() {
 
 function resetZayavkaForm() {
   zSelectedCompanyId = null;
-  document.querySelectorAll('.z-card').forEach(el => el.classList.remove('active'));
+  zayavkaRole = null;
+  document.querySelectorAll('.z-card, [data-zrole]').forEach(el => el.classList.remove('active'));
+  // Скрыть ролевые блоки
+  document.getElementById('z-manager-block').style.display       = 'none';
+  document.getElementById('z-own-trip-block').style.display      = 'none';
+  document.getElementById('z-panel-executor').style.display      = 'none';
+  document.getElementById('z-panel-exec-bank').style.display     = 'none';
+  document.getElementById('z-panel-customer-party').style.display = 'none';
   document.querySelectorAll('#tab-zayavka input, #tab-zayavka textarea').forEach(el => {
     if (el.id === 'z-payment-method') el.value = 'Оплата 100% безналичный расчет после выгрузки с предоставлением фото и видео, так же с предоставлением сканов, подписанных отгрузочных документов, ТТН и оригиналов выставленных АВР(ЭАВР), ЭСФ.';
     else if (el.id === 'z-payment-conditions') el.value = 'При форс мажорных обстоятельствах, оплата производится в течении 3-х банковских дней, с обязательным оповещением Исполнителя';

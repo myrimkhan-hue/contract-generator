@@ -35,6 +35,7 @@ const OUR_COMPANIES = {
     signerFull: 'Юань Вэн-Лун',
     signerShort: 'Юань В.',
     basis: 'Устава',
+    talon: '',
     phone: '+7 747 523 52 90',
     email: 'info@ava-solution.kz',
   },
@@ -52,6 +53,7 @@ const OUR_COMPANIES = {
     signerFull: 'Сапаргалиев Алмат Абилдаевич',
     signerShort: 'Сапаргалиев А. А.',
     basis: 'Устава',
+    talon: '',
     phone: '+7 701 904 7777',
     email: 'altcorp01@gmail.com',
   },
@@ -69,6 +71,7 @@ const OUR_COMPANIES = {
     signerFull: 'Юань Эрик Вэнович',
     signerShort: 'Юань Э. В.',
     basis: 'Талона',
+    talon: '',
     phone: '—',
     email: 'info@ava-solution.kz',
   },
@@ -323,76 +326,159 @@ function generateZayavkaNumber(companyPrefix) {
 
 app.post('/api/generate-zayavka', (req, res) => {
   try {
-    const { ourCompanyId, manager, cargo, loading, unloading, executor, payment } = req.body;
+    const { ourCompanyId, ourRole, manager, customer, cargo, loading, unloading, executor, payment } = req.body;
 
     if (!ourCompanyId || !OUR_COMPANIES[ourCompanyId]) {
       return res.status(400).json({ error: 'Не выбрана наша компания.' });
     }
-    if (!executor || !executor.name) {
-      return res.status(400).json({ error: 'Не введено название исполнителя.' });
-    }
 
     const our = OUR_COMPANIES[ourCompanyId];
+    const isExecutor = ourRole === 'executor';
+
+    // Проверка обязательных полей другой стороны
+    if (isExecutor && (!customer || !customer.name)) {
+      return res.status(400).json({ error: 'Не введено название Заказчика.' });
+    }
+    if (!isExecutor && (!executor || !executor.name)) {
+      return res.status(400).json({ error: 'Не введено название Исполнителя.' });
+    }
+
     const zayavkaNumber = generateZayavkaNumber(our.prefix);
     const dateStr = formatDateRu(new Date());
     const amountNum = parseInt(payment.amount) || 0;
+
+    let Z, I; // Заказчик, Исполнитель
+
+    if (isExecutor) {
+      // Мы — Исполнитель, другая сторона — Заказчик
+      Z = {
+        name:     customer.name     || '—',
+        type:     customer.type     || 'ТОО',
+        position: customer.position || 'Директор',
+        signerFull:  customer.signerFull  || '—',
+        signerShort: customer.signerShort || customer.signerFull || '—',
+        basis:    customer.basis    || '—',
+        address:  customer.address  || '—',
+        bin:      customer.bin      || '—',
+        bank:     customer.bank     || '—',
+        bik:      customer.bik      || '—',
+        account:  customer.account  || '—',
+        phone:    customer.phone    || '—',
+        email:    customer.email    || '—',
+        manager:      customer.manager      || '—',
+        managerPhone: customer.managerPhone || '—',
+      };
+      I = {
+        name:        our.name,
+        type:        our.type,
+        position:    our.position,
+        signerFull:  our.signerFull,
+        signerShort: our.signerShort,
+        basis:       our.basis,
+        address:     our.address,
+        bin:         our.bin,
+        bank:        our.bank,
+        bik:         our.bik,
+        account:     our.account,
+        talon:       our.talon || '—',
+        contact:     (executor && executor.contact) || our.phone,
+        vehicle:     (executor && executor.vehicle) || '—',
+        driver:      (executor && executor.driver)  || '—',
+      };
+    } else {
+      // Мы — Заказчик, другая сторона — Исполнитель
+      Z = {
+        name:        our.name,
+        type:        our.type,
+        position:    our.position,
+        signerFull:  our.signerFull,
+        signerShort: our.signerShort,
+        basis:       our.basis,
+        address:     our.address,
+        bin:         our.bin,
+        bank:        our.bank,
+        bik:         our.bik,
+        account:     our.account,
+        phone:       our.phone,
+        email:       our.email,
+        manager:      (manager && manager.name)  || '—',
+        managerPhone: (manager && manager.phone) || '—',
+      };
+      I = {
+        name:        executor.name     || '—',
+        type:        executor.type     || 'ИП',
+        position:    executor.position || 'Директор',
+        signerFull:  executor.signerFull  || '—',
+        signerShort: executor.signerShort || executor.signerFull || '—',
+        basis:       executor.basis    || '—',
+        address:     executor.address  || '—',
+        bin:         executor.bin      || '—',
+        bank:        executor.bank     || '—',
+        bik:         executor.bik      || '—',
+        account:     executor.account  || '—',
+        talon:       executor.talon    || '—',
+        contact:     executor.contact  || '—',
+        vehicle:     executor.vehicle  || '—',
+        driver:      executor.driver   || '—',
+      };
+    }
 
     const values = {
       'НОМЕР_ЗАЯВКИ': zayavkaNumber,
       'ДАТА_ЗАЯВКИ': dateStr,
 
-      'ЗАКАЗЧИК_НАЗВАНИЕ': our.name,
-      'ЗАКАЗЧИК_КРАТКОЕ': our.short,
-      'ЗАКАЗЧИК_ПОДПИСАНТ': our.signerFull,
-      'ЗАКАЗЧИК_ДОЛЖНОСТЬ': our.position,
-      'ЗАКАЗЧИК_ОСНОВАНИЕ': our.basis,
-      'ЗАКАЗЧИК_АДРЕС': our.address,
-      'ЗАКАЗЧИК_БИН': our.bin,
-      'ЗАКАЗЧИК_БАНК': our.bank,
-      'ЗАКАЗЧИК_БИК': our.bik,
-      'ЗАКАЗЧИК_СЧЕТ': our.account,
-      'ЗАКАЗЧИК_ТЕЛЕФОН': our.phone,
-      'ЗАКАЗЧИК_EMAIL': our.email,
-      'ЗАКАЗЧИК_ПОДПИСАНТ_КРАТКО': our.signerShort,
-      'ЗАКАЗЧИК_МЕНЕДЖЕР': (manager && manager.name) || '—',
-      'ЗАКАЗЧИК_МЕНЕДЖЕР_ТЕЛ': (manager && manager.phone) || '—',
+      'ЗАКАЗЧИК_НАЗВАНИЕ':        Z.name,
+      'ЗАКАЗЧИК_КРАТКОЕ':         Z.name,
+      'ЗАКАЗЧИК_ДОЛЖНОСТЬ':       Z.position,
+      'ЗАКАЗЧИК_ПОДПИСАНТ':       Z.signerFull,
+      'ЗАКАЗЧИК_ПОДПИСАНТ_КРАТКО': Z.signerShort,
+      'ЗАКАЗЧИК_ОСНОВАНИЕ':       Z.basis,
+      'ЗАКАЗЧИК_АДРЕС':           Z.address,
+      'ЗАКАЗЧИК_БИН':             Z.bin,
+      'ЗАКАЗЧИК_БАНК':            Z.bank,
+      'ЗАКАЗЧИК_БИК':             Z.bik,
+      'ЗАКАЗЧИК_СЧЕТ':            Z.account,
+      'ЗАКАЗЧИК_ТЕЛЕФОН':         Z.phone || '—',
+      'ЗАКАЗЧИК_EMAIL':           Z.email || '—',
+      'ЗАКАЗЧИК_МЕНЕДЖЕР':        Z.manager,
+      'ЗАКАЗЧИК_МЕНЕДЖЕР_ТЕЛ':    Z.managerPhone,
 
-      'ГРУЗООТПРАВИТЕЛЬ': (cargo && cargo.shipper) || '—',
-      'ГРУЗОПОЛУЧАТЕЛЬ': (cargo && cargo.consignee) || '—',
-      'МАРШРУТ': (cargo && cargo.route) || '—',
-      'НАИМЕНОВАНИЕ_ГРУЗА': (cargo && cargo.name) || '—',
-      'КОЛ_МЕСТ': (cargo && cargo.qty) || '—',
-      'ГАБАРИТЫ': (cargo && cargo.dimensions) || 'Согласно ТТН',
+      'ГРУЗООТПРАВИТЕЛЬ':  (cargo && cargo.shipper)     || '—',
+      'ГРУЗОПОЛУЧАТЕЛЬ':   (cargo && cargo.consignee)   || '—',
+      'МАРШРУТ':           (cargo && cargo.route)       || '—',
+      'НАИМЕНОВАНИЕ_ГРУЗА': (cargo && cargo.name)       || '—',
+      'КОЛ_МЕСТ':          (cargo && cargo.qty)         || '—',
+      'ГАБАРИТЫ':          (cargo && cargo.dimensions)  || 'Согласно ТТН',
 
-      'ДАТА_ПОГРУЗКИ': (loading && loading.datetime) || '—',
-      'АДРЕС_ПОГРУЗКИ': (loading && loading.address) || '—',
-      'КОНТАКТ_ПОГРУЗКИ': (loading && loading.contact) || '—',
+      'ДАТА_ПОГРУЗКИ':    (loading && loading.datetime) || '—',
+      'АДРЕС_ПОГРУЗКИ':   (loading && loading.address)  || '—',
+      'КОНТАКТ_ПОГРУЗКИ': (loading && loading.contact)  || '—',
 
-      'АДРЕС_РАЗГРУЗКИ': (unloading && unloading.address) || '—',
+      'АДРЕС_РАЗГРУЗКИ':   (unloading && unloading.address) || '—',
       'КОНТАКТ_РАЗГРУЗКИ': (unloading && unloading.contact) || '—',
 
-      'ИСПОЛНИТЕЛЬ_НАЗВАНИЕ': executor.name || '—',
-      'ИСПОЛНИТЕЛЬ_ТИП': executor.type || 'ИП',
-      'ИСПОЛНИТЕЛЬ_ДОЛЖНОСТЬ': executor.position || 'Директор',
-      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ': executor.signerFull || '—',
-      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ_КРАТКО': executor.signerShort || executor.signerFull || '—',
-      'ИСПОЛНИТЕЛЬ_ОСНОВАНИЕ': executor.basis || '—',
-      'ИСПОЛНИТЕЛЬ_КОНТАКТ': executor.contact || '—',
-      'ДАННЫЕ_АМ': executor.vehicle || '—',
-      'ДАННЫЕ_ВОДИТЕЛЯ': executor.driver || '—',
-      'ИСПОЛНИТЕЛЬ_ИИН': executor.bin || '—',
-      'ИСПОЛНИТЕЛЬ_АДРЕС': executor.address || '—',
-      'ИСПОЛНИТЕЛЬ_БАНК': executor.bank || '—',
-      'ИСПОЛНИТЕЛЬ_БИК': executor.bik || '—',
-      'ИСПОЛНИТЕЛЬ_СЧЕТ': executor.account || '—',
-      'ИСПОЛНИТЕЛЬ_ТАЛОН': executor.talon || '—',
+      'ИСПОЛНИТЕЛЬ_НАЗВАНИЕ':        I.name,
+      'ИСПОЛНИТЕЛЬ_ТИП':             I.type,
+      'ИСПОЛНИТЕЛЬ_ДОЛЖНОСТЬ':       I.position,
+      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ':       I.signerFull,
+      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ_КРАТКО': I.signerShort,
+      'ИСПОЛНИТЕЛЬ_ОСНОВАНИЕ':       I.basis,
+      'ИСПОЛНИТЕЛЬ_АДРЕС':           I.address,
+      'ИСПОЛНИТЕЛЬ_ИИН':             I.bin,
+      'ИСПОЛНИТЕЛЬ_БАНК':            I.bank,
+      'ИСПОЛНИТЕЛЬ_БИК':             I.bik,
+      'ИСПОЛНИТЕЛЬ_СЧЕТ':            I.account,
+      'ИСПОЛНИТЕЛЬ_ТАЛОН':           I.talon,
+      'ИСПОЛНИТЕЛЬ_КОНТАКТ':         I.contact,
+      'ДАННЫЕ_АМ':                   I.vehicle,
+      'ДАННЫЕ_ВОДИТЕЛЯ':             I.driver,
 
       'СТОИМОСТЬ_ЦИФРАМИ': amountNum ? formatAmount(amountNum) : '—',
       'СТОИМОСТЬ_ПРОПИСЬЮ': amountNum ? amountToWords(amountNum) : '—',
-      'СПОСОБ_ОПЛАТЫ': (payment && payment.method) || '—',
+      'СПОСОБ_ОПЛАТЫ':  (payment && payment.method)     || '—',
       'УСЛОВИЯ_ОПЛАТЫ': (payment && payment.conditions) || '—',
-      'ДОКУМЕНТЫ': (payment && payment.documents) || 'ТТН',
-      'ПРИМЕЧАНИЕ': (payment && payment.notes) || '—',
+      'ДОКУМЕНТЫ':      (payment && payment.documents)  || 'ТТН',
+      'ПРИМЕЧАНИЕ':     (payment && payment.notes)      || '—',
     };
 
     const zip = new AdmZip(ZAYAVKA_TEMPLATE_PATH);
@@ -414,7 +500,8 @@ app.post('/api/generate-zayavka', (req, res) => {
       number: zayavkaNumber,
       date: new Date().toISOString(),
       ourCompany: our.short,
-      otherName: executor.name,
+      ourRole: isExecutor ? 'executor' : 'customer',
+      otherName: isExecutor ? Z.name : I.name,
       route: (cargo && cargo.route) || '',
       filename,
     });
