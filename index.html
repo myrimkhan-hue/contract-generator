@@ -99,6 +99,17 @@
   .type-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 6px; }
   .type-tag.contract { background: #e6eef6; color: #2c5282; }
   .type-tag.zayavka { background: #fef3e2; color: #92400e; }
+
+  /* Чипы-варианты для примечания */
+  .note-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .note-chip {
+    padding: 5px 12px; border-radius: 999px; border: 1.5px solid var(--line);
+    background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 500;
+    cursor: pointer; font-family: inherit; transition: all 0.15s; user-select: none;
+  }
+  .note-chip:hover { border-color: var(--muted); color: var(--ink); }
+  .note-chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .note-chip.active::before { content: "✓ "; }
 </style>
 </head>
 <body>
@@ -503,8 +514,9 @@
               <input type="text" id="z-documents" value="ТТН">
             </div>
             <div class="field full">
-              <label>Примечание</label>
-              <textarea id="z-notes" placeholder="Полная загрузка. Наличие цепей (4-6шт), стяжных ремней (4-6шт)"></textarea>
+              <label>Примечание — нажмите на варианты, чтобы добавить/убрать</label>
+              <div class="note-chips" id="z-note-chips"></div>
+              <textarea id="z-notes" oninput="syncNoteChips()" placeholder="Полная загрузка. Наличие цепей (4-6шт), стяжных ремней (4-6шт)"></textarea>
             </div>
           </div>
         </div>
@@ -663,6 +675,53 @@ function formatLoadingDateTime(dateISO, time) {
 
 function initZayavkaDates() {
   document.getElementById('z-loading-date').value = todayISO();
+}
+
+// === Примечание: готовые варианты-чипы ===
+const NOTE_OPTIONS = [
+  'Полная загрузка',
+  'Догруз',
+  'Наличие цепей (4-6шт)',
+  'Наличие стяжных ремней (4-6шт)',
+  'Наличие коников',
+  'Боковая растентовка',
+  'Верхняя погрузка',
+  'Пломбировка груза',
+  'GPS-мониторинг',
+];
+
+function renderNoteChips() {
+  const box = document.getElementById('z-note-chips');
+  box.innerHTML = NOTE_OPTIONS.map(opt =>
+    `<button type="button" class="note-chip" data-note="${opt}" onclick="toggleNoteChip(this)">${opt}</button>`
+  ).join('');
+  syncNoteChips();
+}
+
+function toggleNoteChip(btn) {
+  const phrase = btn.dataset.note;
+  const ta = document.getElementById('z-notes');
+  if (ta.value.includes(phrase)) {
+    // Убираем фразу и подчищаем оставшиеся разделители
+    ta.value = ta.value
+      .replace(phrase, '')
+      .replace(/\.\s*\./g, '.')
+      .replace(/^[\s.]+/, '')
+      .replace(/[\s.]+$/, '');
+  } else {
+    ta.value = ta.value.trim()
+      ? ta.value.replace(/[\s.]+$/, '') + '. ' + phrase
+      : phrase;
+  }
+  syncNoteChips();
+}
+
+// Подсветка чипов по текущему тексту (в т.ч. при ручном редактировании)
+function syncNoteChips() {
+  const text = document.getElementById('z-notes').value;
+  document.querySelectorAll('.note-chip').forEach(ch => {
+    ch.classList.toggle('active', text.includes(ch.dataset.note));
+  });
 }
 
 function showStatus(id, msg, type) {
@@ -885,6 +944,7 @@ function resetZayavkaForm() {
   });
   initZayavkaDates();
   document.getElementById('z-loading-time').value = '10:00';
+  syncNoteChips();
   document.getElementById('z-status').classList.remove('show');
 }
 
@@ -929,6 +989,7 @@ async function loadHistory() {
 loadCompanies();
 loadHistory();
 initZayavkaDates();
+renderNoteChips();
 </script>
 </body>
 </html>
