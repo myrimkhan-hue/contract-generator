@@ -101,6 +101,12 @@ function formatDateRu(d) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} г.`;
 }
 
+// Парсинг ISO-даты "YYYY-MM-DD" из поля <input type="date"> (без смещения TZ)
+function parseDateISO(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // === Утилита: генерация номера договора ===
 // Формат: <ПРЕФИКС>-<EX|CL>-DDMM/YYYY
 //   EX — мы Заказчик (Exporter заказа / Заказчик)
@@ -152,7 +158,7 @@ function fillTemplate(values) {
 // === API: генерация договора ===
 app.post('/api/generate', (req, res) => {
   try {
-    const { ourCompanyId, ourRole, other } = req.body;
+    const { ourCompanyId, ourRole, other, contractDate, contractSum } = req.body;
 
     if (!ourCompanyId || !OUR_COMPANIES[ourCompanyId]) {
       return res.status(400).json({ error: 'Не выбрана наша компания.' });
@@ -177,11 +183,14 @@ app.post('/api/generate', (req, res) => {
     void customerGender; void executorGender;
 
     const contractNumber = generateContractNumber(our.prefix, ourRole);
-    const dateStr = formatDateRu(new Date());
+    const dateStr = contractDate
+      ? formatDateRu(parseDateISO(contractDate))
+      : formatDateRu(new Date());
 
     const values = {
       'НОМЕР_ДОГОВОРА': contractNumber,
       'ДАТА_ДОГОВОРА': dateStr,
+      'СУММА_ДОГОВОРА': contractSum || '—',
 
       'ЗАКАЗЧИК_НАЗВАНИЕ': customer.name,
       'ЗАКАЗЧИК_БИН': customer.bin,

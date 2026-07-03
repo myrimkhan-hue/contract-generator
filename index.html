@@ -62,11 +62,24 @@
     border: 1px solid var(--line); background: var(--bg); color: var(--ink);
     padding: 9px 11px; border-radius: 6px; font-size: 14px; font-family: inherit;
     transition: border-color 0.15s, background 0.15s;
+    appearance: none; -webkit-appearance: none;
   }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b6760' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+    cursor: pointer;
+  }
+  .field input[type="date"] { cursor: pointer; }
+  .field input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; }
   .field input:focus, .field select:focus { outline: none; border-color: var(--accent); background: var(--surface); }
   .field input::placeholder { color: #b3aea4; }
 
-  .actions { display: flex; gap: 10px; margin-top: 8px; }
+  /* Sum field hint */
+  .sum-hint { font-size: 11px; color: var(--muted); margin-top: 2px; min-height: 16px; font-variant-numeric: tabular-nums; }
+
+  .actions { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
   .btn {
     padding: 11px 20px; border-radius: 7px; font-size: 14px; font-weight: 600;
     cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
@@ -134,9 +147,25 @@
         </div>
       </div>
 
-      <!-- Шаг 3: Вторая сторона -->
+      <!-- Шаг 3: Параметры договора -->
       <div class="panel">
-        <h2><span class="step-num">3</span> Реквизиты второй стороны</h2>
+        <h2><span class="step-num">3</span> Параметры договора</h2>
+        <div class="form-grid">
+          <div class="field">
+            <label>Дата договора <span class="req">*</span></label>
+            <input type="date" id="contract-date">
+          </div>
+          <div class="field">
+            <label>Сумма договора (тенге)</label>
+            <input type="text" id="contract-sum" inputmode="numeric" placeholder="0" autocomplete="off">
+            <div class="sum-hint" id="sum-hint"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Шаг 4: Вторая сторона -->
+      <div class="panel">
+        <h2><span class="step-num">4</span> Реквизиты второй стороны</h2>
         <div class="form-grid">
           <div class="field">
             <label>Тип <span class="req">*</span></label>
@@ -156,7 +185,14 @@
           </div>
           <div class="field">
             <label>Должность подписанта <span class="req">*</span></label>
-            <input type="text" id="other-position" placeholder="Директор">
+            <select id="other-position">
+              <option>Директор</option>
+              <option>Генеральный директор</option>
+              <option>Заместитель директора</option>
+              <option>Председатель правления</option>
+              <option>Руководитель</option>
+              <option value="ИП">ИП</option>
+            </select>
           </div>
           <div class="field full">
             <label>ФИО подписанта (полное) <span class="req">*</span></label>
@@ -168,7 +204,13 @@
           </div>
           <div class="field" id="other-basis-field">
             <label>Действует на основании <span class="req">*</span></label>
-            <input type="text" id="other-basis" placeholder="Устава">
+            <select id="other-basis">
+              <option>Устава</option>
+              <option>Доверенности</option>
+              <option>Приказа</option>
+              <option>Свидетельства о государственной регистрации ИП</option>
+              <option>Талона предпринимателя</option>
+            </select>
           </div>
           <div class="field full">
             <label>Юридический адрес <span class="req">*</span></label>
@@ -197,9 +239,9 @@
         </div>
       </div>
 
-      <!-- Шаг 4: Генерация -->
+      <!-- Шаг 5: Генерация -->
       <div class="panel">
-        <h2><span class="step-num">4</span> Сгенерировать договор</h2>
+        <h2><span class="step-num">5</span> Сгенерировать договор</h2>
         <div class="actions">
           <button class="btn btn-primary" id="gen-btn" onclick="generate()">📄 Создать договор</button>
           <button class="btn" onclick="resetForm()">Сбросить</button>
@@ -224,6 +266,39 @@
 let companies = [];
 let selectedCompanyId = null;
 let selectedRole = null;
+
+// ── Форматирование чисел: 1000000 → "1 000 000" ──────────────────────────
+function formatNumber(raw) {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' '); // неразрывный пробел
+}
+
+function onSumInput(e) {
+  const input = e.target;
+  const formatted = formatNumber(input.value);
+  input.value = formatted;
+  const hint = document.getElementById('sum-hint');
+  if (formatted) {
+    hint.textContent = formatted + ' ₸';
+  } else {
+    hint.textContent = '';
+  }
+}
+
+// Чистое значение (без пробелов) для отправки на сервер
+function rawSum() {
+  return document.getElementById('contract-sum').value.replace(/\D/g, '');
+}
+
+// ── Текущая дата в формате YYYY-MM-DD для <input type="date"> ────────────
+function todayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 async function loadCompanies() {
   const res = await fetch('/api/companies');
@@ -255,17 +330,19 @@ function updateOtherTypeUI() {
   const type = document.getElementById('other-type').value;
   const nameLabel = document.getElementById('other-name-label');
   const nameInput = document.getElementById('other-name');
-  const basisField = document.getElementById('other-basis-field');
-  const basisInput = document.getElementById('other-basis');
+  const positionSel = document.getElementById('other-position');
+  const basisSel = document.getElementById('other-basis');
 
   if (type === 'ИП') {
     nameLabel.innerHTML = 'Полное наименование (ИП) <span class="req">*</span>';
     nameInput.placeholder = 'ИП "Название"';
-    basisInput.placeholder = 'Талона / Свидетельства';
+    positionSel.value = 'ИП';
+    basisSel.value = 'Талона предпринимателя';
   } else {
     nameLabel.innerHTML = 'Полное наименование <span class="req">*</span>';
     nameInput.placeholder = 'ТОО "Название"';
-    basisInput.placeholder = 'Устава';
+    positionSel.value = 'Директор';
+    basisSel.value = 'Устава';
   }
 }
 
@@ -281,21 +358,24 @@ function showStatus(msg, type) {
 function val(id) { return document.getElementById(id).value.trim(); }
 
 async function generate() {
-  // Валидация
   if (!selectedCompanyId) return showStatus('Выберите нашу компанию (шаг 1).', 'warn');
   if (!selectedRole) return showStatus('Выберите нашу роль в договоре (шаг 2).', 'warn');
+  if (!val('contract-date')) return showStatus('Укажите дату договора (шаг 3).', 'warn');
 
   const required = [
     ['other-name', 'название второй стороны'],
     ['other-bin', 'БИН/ИИН'],
-    ['other-position', 'должность подписанта'],
     ['other-signer-full', 'полное ФИО подписанта'],
-    ['other-basis', 'основание (Устав/Талон)'],
     ['other-address', 'юридический адрес'],
   ];
   for (const [id, label] of required) {
     if (!val(id)) return showStatus(`Заполните: ${label}.`, 'warn');
   }
+
+  const sumRaw = rawSum();
+  const sumFormatted = sumRaw
+    ? sumRaw.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' тенге'
+    : '—';
 
   const other = {
     type: val('other-type'),
@@ -321,7 +401,13 @@ async function generate() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ourCompanyId: selectedCompanyId, ourRole: selectedRole, other })
+      body: JSON.stringify({
+        ourCompanyId: selectedCompanyId,
+        ourRole: selectedRole,
+        other,
+        contractDate: val('contract-date'),
+        contractSum: sumFormatted,
+      })
     });
 
     if (!res.ok) {
@@ -336,7 +422,6 @@ async function generate() {
     const m = disposition.match(/filename\*=UTF-8''([^;]+)/);
     if (m) filename = decodeURIComponent(m[1]);
 
-    // Скачать
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -361,6 +446,9 @@ function resetForm() {
   selectedRole = null;
   document.querySelectorAll('.card, .role').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('input').forEach(el => el.value = '');
+  document.getElementById('contract-date').value = todayISO();
+  document.getElementById('contract-sum').value = '';
+  document.getElementById('sum-hint').textContent = '';
   document.getElementById('other-type').value = 'ТОО';
   updateOtherTypeUI();
   document.getElementById('status').classList.remove('show');
@@ -388,6 +476,10 @@ async function loadHistory() {
     `;
   }).join('');
 }
+
+// ── Инициализация ──────────────────────────────────────────────────────────
+document.getElementById('contract-date').value = todayISO();
+document.getElementById('contract-sum').addEventListener('input', onSumInput);
 
 loadCompanies();
 loadHistory();
