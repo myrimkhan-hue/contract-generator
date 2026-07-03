@@ -501,6 +501,14 @@
               <label>Стоимость транспортировки (тенге, цифрами) <span class="req">*</span></label>
               <input type="text" id="z-amount" placeholder="980 000" oninput="formatSumInput(this)">
             </div>
+            <div class="field">
+              <label>Предоплата, %</label>
+              <input type="number" id="z-prepay-pct" min="0" max="100" step="5" value="0" oninput="onPaySplitInput('pre')">
+            </div>
+            <div class="field">
+              <label>Постоплата, %</label>
+              <input type="number" id="z-postpay-pct" min="0" max="100" step="5" value="100" oninput="onPaySplitInput('post')">
+            </div>
             <div class="field full">
               <label>Способ оплаты</label>
               <textarea id="z-payment-method">Оплата 100% безналичный расчет после выгрузки с предоставлением фото и видео, так же с предоставлением сканов, подписанных отгрузочных документов, ТТН и оригиналов выставленных АВР(ЭАВР), ЭСФ.</textarea>
@@ -675,6 +683,31 @@ function formatLoadingDateTime(dateISO, time) {
 
 function initZayavkaDates() {
   document.getElementById('z-loading-date').value = todayISO();
+}
+
+// === Способ оплаты: предоплата / постоплата ===
+function buildPaymentMethodText(pre) {
+  const post = 100 - pre;
+  const docs = 'сканов, подписанных отгрузочных документов, ТТН и оригиналов выставленных АВР(ЭАВР), ЭСФ';
+  if (pre <= 0) {
+    return `Оплата 100% безналичный расчет после выгрузки с предоставлением фото и видео, так же с предоставлением ${docs}.`;
+  }
+  if (pre >= 100) {
+    return 'Предоплата 100% безналичный расчет при погрузке. После выгрузки предоставляются фото и видео, а также сканы подписанных отгрузочных документов, ТТН и оригиналы выставленных АВР(ЭАВР), ЭСФ.';
+  }
+  return `Предоплата ${pre}% безналичный расчет при погрузке, постоплата ${post}% после выгрузки с предоставлением фото и видео, так же с предоставлением ${docs}.`;
+}
+
+function onPaySplitInput(which) {
+  const preEl = document.getElementById('z-prepay-pct');
+  const postEl = document.getElementById('z-postpay-pct');
+  const el = which === 'pre' ? preEl : postEl;
+  let v = parseInt(el.value, 10);
+  if (isNaN(v)) return; // поле пустое во время набора — не трогаем
+  v = Math.max(0, Math.min(100, v));
+  el.value = v;
+  (which === 'pre' ? postEl : preEl).value = 100 - v;
+  document.getElementById('z-payment-method').value = buildPaymentMethodText(parseInt(preEl.value, 10));
 }
 
 // === Примечание: готовые варианты-чипы ===
@@ -944,6 +977,8 @@ function resetZayavkaForm() {
   });
   initZayavkaDates();
   document.getElementById('z-loading-time').value = '10:00';
+  document.getElementById('z-prepay-pct').value = 0;
+  document.getElementById('z-postpay-pct').value = 100;
   syncNoteChips();
   document.getElementById('z-status').classList.remove('show');
 }
