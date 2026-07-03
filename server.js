@@ -35,6 +35,7 @@ const OUR_COMPANIES = {
     signerFull: 'Юань Вэн-Лун',
     signerShort: 'Юань В.',
     basis: 'Устава',
+    talon: '',
     phone: '+7 747 523 52 90',
     email: 'info@ava-solution.kz',
   },
@@ -52,6 +53,7 @@ const OUR_COMPANIES = {
     signerFull: 'Сапаргалиев Алмат Абилдаевич',
     signerShort: 'Сапаргалиев А. А.',
     basis: 'Устава',
+    talon: '',
     phone: '+7 701 904 7777',
     email: 'altcorp01@gmail.com',
   },
@@ -69,6 +71,7 @@ const OUR_COMPANIES = {
     signerFull: 'Юань Эрик Вэнович',
     signerShort: 'Юань Э. В.',
     basis: 'Талона',
+    talon: '',
     phone: '—',
     email: 'info@ava-solution.kz',
   },
@@ -269,6 +272,261 @@ app.get('/api/history/:filename', (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safe)}`);
   res.send(buffer);
+});
+
+// === Заявки ===
+
+const ZAYAVKA_TEMPLATE_PATH = path.join(__dirname, 'template_zayavka.docx');
+
+function amountToWords(n) {
+  n = parseInt(n);
+  if (isNaN(n) || n === 0) return 'ноль';
+  const onesM = ['','один','два','три','четыре','пять','шесть','семь','восемь','девять',
+    'десять','одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать',
+    'шестнадцать','семнадцать','восемнадцать','девятнадцать'];
+  const onesF = ['','одна','две','три','четыре','пять','шесть','семь','восемь','девять',
+    'десять','одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать',
+    'шестнадцать','семнадцать','восемнадцать','девятнадцать'];
+  const tens = ['','','двадцать','тридцать','сорок','пятьдесят','шестьдесят','семьдесят','восемьдесят','девяносто'];
+  const hundreds = ['','сто','двести','триста','четыреста','пятьсот','шестьсот','семьсот','восемьсот','девятьсот'];
+  function plural(n, one, two, five) {
+    const m = n % 100;
+    if (m >= 11 && m <= 19) return five;
+    const m10 = n % 10;
+    if (m10 === 1) return one;
+    if (m10 >= 2 && m10 <= 4) return two;
+    return five;
+  }
+  function chunk(n, fem) {
+    if (n === 0) return '';
+    const ones = fem ? onesF : onesM;
+    let s = '';
+    const h = Math.floor(n / 100);
+    const r = n % 100;
+    if (h) s += hundreds[h] + ' ';
+    if (r < 20 && r > 0) { s += ones[r] + ' '; }
+    else if (r >= 20) {
+      s += tens[Math.floor(r / 10)] + ' ';
+      if (r % 10) s += ones[r % 10] + ' ';
+    }
+    return s;
+  }
+  const mil = Math.floor(n / 1e6);
+  const tho = Math.floor((n % 1e6) / 1e3);
+  const rem = n % 1e3;
+  let result = '';
+  if (mil) result += chunk(mil) + plural(mil, 'миллион', 'миллиона', 'миллионов') + ' ';
+  if (tho) result += chunk(tho, true) + plural(tho, 'тысяча', 'тысячи', 'тысяч') + ' ';
+  if (rem) result += chunk(rem);
+  return result.trim();
+}
+
+function formatAmount(n) {
+  return parseInt(n).toLocaleString('ru-RU').replace(/ /g, ' ');
+}
+
+function generateZayavkaNumber(companyPrefix) {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  return `${companyPrefix}-Z-${dd}${mm}/${yyyy}`;
+}
+
+app.post('/api/generate-zayavka', (req, res) => {
+  try {
+    const { ourCompanyId, ourRole, manager, customer, cargo, loading, unloading, executor, payment } = req.body;
+
+    if (!ourCompanyId || !OUR_COMPANIES[ourCompanyId]) {
+      return res.status(400).json({ error: 'Не выбрана наша компания.' });
+    }
+
+    const our = OUR_COMPANIES[ourCompanyId];
+    const isExecutor = ourRole === 'executor';
+
+    // Проверка обязательных полей другой стороны
+    if (isExecutor && (!customer || !customer.name)) {
+      return res.status(400).json({ error: 'Не введено название Заказчика.' });
+    }
+    if (!isExecutor && (!executor || !executor.name)) {
+      return res.status(400).json({ error: 'Не введено название Исполнителя.' });
+    }
+
+    const zayavkaNumber = generateZayavkaNumber(our.prefix);
+    const dateStr = formatDateRu(new Date());
+    const amountNum = parseInt(payment.amount) || 0;
+
+    let Z, I; // Заказчик, Исполнитель
+
+    if (isExecutor) {
+      // Мы — Исполнитель, другая сторона — Заказчик
+      Z = {
+        name:     customer.name     || '—',
+        type:     customer.type     || 'ТОО',
+        position: customer.position || 'Директор',
+        signerFull:  customer.signerFull  || '—',
+        signerShort: customer.signerShort || customer.signerFull || '—',
+        basis:    customer.basis    || '—',
+        address:  customer.address  || '—',
+        bin:      customer.bin      || '—',
+        bank:     customer.bank     || '—',
+        bik:      customer.bik      || '—',
+        account:  customer.account  || '—',
+        phone:    customer.phone    || '—',
+        email:    customer.email    || '—',
+        manager:      customer.manager      || '—',
+        managerPhone: customer.managerPhone || '—',
+      };
+      I = {
+        name:        our.name,
+        type:        our.type,
+        position:    our.position,
+        signerFull:  our.signerFull,
+        signerShort: our.signerShort,
+        basis:       our.basis,
+        address:     our.address,
+        bin:         our.bin,
+        bank:        our.bank,
+        bik:         our.bik,
+        account:     our.account,
+        talon:       our.talon || '—',
+        contact:     (executor && executor.contact) || our.phone,
+        vehicle:     (executor && executor.vehicle) || '—',
+        driver:      (executor && executor.driver)  || '—',
+      };
+    } else {
+      // Мы — Заказчик, другая сторона — Исполнитель
+      Z = {
+        name:        our.name,
+        type:        our.type,
+        position:    our.position,
+        signerFull:  our.signerFull,
+        signerShort: our.signerShort,
+        basis:       our.basis,
+        address:     our.address,
+        bin:         our.bin,
+        bank:        our.bank,
+        bik:         our.bik,
+        account:     our.account,
+        phone:       our.phone,
+        email:       our.email,
+        manager:      (manager && manager.name)  || '—',
+        managerPhone: (manager && manager.phone) || '—',
+      };
+      I = {
+        name:        executor.name     || '—',
+        type:        executor.type     || 'ИП',
+        position:    executor.position || 'Директор',
+        signerFull:  executor.signerFull  || '—',
+        signerShort: executor.signerShort || executor.signerFull || '—',
+        basis:       executor.basis    || '—',
+        address:     executor.address  || '—',
+        bin:         executor.bin      || '—',
+        bank:        executor.bank     || '—',
+        bik:         executor.bik      || '—',
+        account:     executor.account  || '—',
+        talon:       executor.talon    || '—',
+        contact:     executor.contact  || '—',
+        vehicle:     executor.vehicle  || '—',
+        driver:      executor.driver   || '—',
+      };
+    }
+
+    const values = {
+      'НОМЕР_ЗАЯВКИ': zayavkaNumber,
+      'ДАТА_ЗАЯВКИ': dateStr,
+
+      'ЗАКАЗЧИК_НАЗВАНИЕ':        Z.name,
+      'ЗАКАЗЧИК_КРАТКОЕ':         Z.name,
+      'ЗАКАЗЧИК_ДОЛЖНОСТЬ':       Z.position,
+      'ЗАКАЗЧИК_ПОДПИСАНТ':       Z.signerFull,
+      'ЗАК_КР': Z.signerShort,
+      'ЗАКАЗЧИК_ОСНОВАНИЕ':       Z.basis,
+      'ЗАКАЗЧИК_АДРЕС':           Z.address,
+      'ЗАКАЗЧИК_БИН':             Z.bin,
+      'ЗАКАЗЧИК_БАНК':            Z.bank,
+      'ЗАКАЗЧИК_БИК':             Z.bik,
+      'ЗАКАЗЧИК_СЧЕТ':            Z.account,
+      'ЗАКАЗЧИК_ТЕЛЕФОН':         Z.phone || '—',
+      'ЗАКАЗЧИК_EMAIL':           Z.email || '—',
+      'ЗАКАЗЧИК_МЕНЕДЖЕР':        Z.manager,
+      'ЗАКАЗЧИК_МЕНЕДЖЕР_ТЕЛ':    Z.managerPhone,
+
+      'ГРУЗООТПРАВИТЕЛЬ':  (cargo && cargo.shipper)     || '—',
+      'ГРУЗОПОЛУЧАТЕЛЬ':   (cargo && cargo.consignee)   || '—',
+      'МАРШРУТ':           (cargo && cargo.route)       || '—',
+      'НАИМЕНОВАНИЕ_ГРУЗА': (cargo && cargo.name)       || '—',
+      'КОЛ_МЕСТ':          (cargo && cargo.qty)         || '—',
+      'ГАБАРИТЫ':          (cargo && cargo.dimensions)  || 'Согласно ТТН',
+
+      'ДАТА_ПОГРУЗКИ':    (loading && loading.datetime) || '—',
+      'АДРЕС_ПОГРУЗКИ':   (loading && loading.address)  || '—',
+      'КОНТАКТ_ПОГРУЗКИ': (loading && loading.contact)  || '—',
+
+      'АДРЕС_РАЗГРУЗКИ':   (unloading && unloading.address) || '—',
+      'КОНТАКТ_РАЗГРУЗКИ': (unloading && unloading.contact) || '—',
+
+      'ИСПОЛНИТЕЛЬ_НАЗВАНИЕ':        I.name,
+      'ИСПОЛНИТЕЛЬ_ТИП':             I.type,
+      'ИСПОЛНИТЕЛЬ_ДОЛЖНОСТЬ':       I.position,
+      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ':       I.signerFull,
+      'ИСП_КР': I.signerShort,
+      'ИСПОЛНИТЕЛЬ_ОСНОВАНИЕ':       I.basis,
+      'ИСПОЛНИТЕЛЬ_АДРЕС':           I.address,
+      'ИСПОЛНИТЕЛЬ_ИИН':             I.bin,
+      'ИСПОЛНИТЕЛЬ_БАНК':            I.bank,
+      'ИСПОЛНИТЕЛЬ_БИК':             I.bik,
+      'ИСПОЛНИТЕЛЬ_СЧЕТ':            I.account,
+      'ИСПОЛНИТЕЛЬ_ТАЛОН':           I.talon,
+      'ИСПОЛНИТЕЛЬ_КОНТАКТ':         I.contact,
+      'ДАННЫЕ_АМ':                   I.vehicle,
+      'ДАННЫЕ_ВОДИТЕЛЯ':             I.driver,
+
+      'СТОИМОСТЬ_ЦИФРАМИ': amountNum ? formatAmount(amountNum) : '—',
+      'СТОИМОСТЬ_ПРОПИСЬЮ': amountNum ? amountToWords(amountNum) : '—',
+      'СПОСОБ_ОПЛАТЫ':  (payment && payment.method)     || '—',
+      'УСЛОВИЯ_ОПЛАТЫ': (payment && payment.conditions) || '—',
+      'ДОКУМЕНТЫ':      (payment && payment.documents)  || 'ТТН',
+      'ПРИМЕЧАНИЕ':     (payment && payment.notes)      || '—',
+    };
+
+    const zip = new AdmZip(ZAYAVKA_TEMPLATE_PATH);
+    const docXmlEntry = zip.getEntry('word/document.xml');
+    let xml = docXmlEntry.getData().toString('utf-8');
+    for (const [key, value] of Object.entries(values)) {
+      xml = xml.split(`{${key}}`).join(escapeXml(value));
+    }
+    zip.updateFile('word/document.xml', Buffer.from(xml, 'utf-8'));
+    const buffer = zip.toBuffer();
+
+    const safeExec = (executor.name || 'исполнитель').replace(/[^\wа-яА-Я\- ]/g, '').replace(/\s+/g, '_').slice(0, 40);
+    const safeNumber = zayavkaNumber.replace(/\//g, '-');
+    const filename = `Заявка_${safeNumber}_${safeExec}.docx`;
+
+    archiveBuffers[filename] = buffer;
+    history.unshift({
+      type: 'zayavka',
+      number: zayavkaNumber,
+      date: new Date().toISOString(),
+      ourCompany: our.short,
+      ourRole: isExecutor ? 'executor' : 'customer',
+      otherName: isExecutor ? Z.name : I.name,
+      route: (cargo && cargo.route) || '',
+      filename,
+    });
+    while (history.length > MAX_HISTORY) {
+      const old = history.pop();
+      delete archiveBuffers[old.filename];
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('X-Zayavka-Number', zayavkaNumber);
+    res.send(buffer);
+  } catch (err) {
+    console.error('Ошибка генерации заявки:', err);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера: ' + err.message });
+  }
 });
 
 app.listen(PORT, () => {
