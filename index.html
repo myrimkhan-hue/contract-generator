@@ -217,17 +217,7 @@
         </div>
 
         <div class="panel">
-          <h2><span class="step-num">4</span> Параметры договора</h2>
-          <div class="form-grid" style="margin-bottom:14px">
-            <div class="field">
-              <label>Дата договора</label>
-              <input type="date" id="contract-date">
-            </div>
-            <div class="field">
-              <label>Сумма договора (тенге)</label>
-              <input type="text" id="contract-sum" placeholder="1 000 000" oninput="formatSumInput(this)">
-            </div>
-          </div>
+          <h2><span class="step-num">4</span> Сгенерировать договор</h2>
           <div class="actions">
             <button class="btn btn-primary" id="gen-btn" onclick="generate()">📄 Создать договор</button>
             <button class="btn" onclick="resetForm()">Сбросить</button>
@@ -322,9 +312,13 @@
         <div class="panel">
           <h2><span class="step-num">3</span> Погрузка и разгрузка</h2>
           <div class="form-grid">
-            <div class="field full">
-              <label>Дата и время погрузки <span class="req">*</span></label>
-              <input type="text" id="z-loading-datetime" placeholder="04 декабря 2025г, 10:00">
+            <div class="field">
+              <label>Дата погрузки <span class="req">*</span></label>
+              <input type="date" id="z-loading-date">
+            </div>
+            <div class="field">
+              <label>Время погрузки</label>
+              <input type="time" id="z-loading-time" value="10:00">
             </div>
             <div class="field full">
               <label>Адрес пункта погрузки <span class="req">*</span></label>
@@ -652,9 +646,23 @@ function todayISO() {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+// Разделение цифр пробелами: 1000000 → 1 000 000
 function formatSumInput(el) {
   const raw = el.value.replace(/\D/g, '');
   el.value = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : '';
+}
+
+// "2025-12-04" + "10:00" → "04 декабря 2025г, 10:00"
+const RU_MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function formatLoadingDateTime(dateISO, time) {
+  if (!dateISO) return '';
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const dateStr = `${String(d).padStart(2, '0')} ${RU_MONTHS[m - 1]} ${y}г`;
+  return time ? `${dateStr}, ${time}` : dateStr;
+}
+
+function initZayavkaDates() {
+  document.getElementById('z-loading-date').value = todayISO();
 }
 
 function showStatus(id, msg, type) {
@@ -706,13 +714,7 @@ async function generate() {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ourCompanyId: selectedCompanyId,
-        ourRole: selectedRole,
-        other,
-        contractDate: val('contract-date'),
-        contractSum: val('contract-sum').replace(/\s/g, ''),
-      })
+      body: JSON.stringify({ ourCompanyId: selectedCompanyId, ourRole: selectedRole, other })
     });
     if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
     const blob = await res.blob();
@@ -736,8 +738,6 @@ function resetForm() {
   document.querySelectorAll('#tab-contract .card, .role').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#tab-contract input').forEach(el => el.value = '');
   document.getElementById('other-type').value = 'ТОО';
-  document.getElementById('contract-date').value = todayISO();
-  document.getElementById('contract-sum').value = '';
   updateOtherTypeUI();
   document.getElementById('status').classList.remove('show');
 }
@@ -755,7 +755,7 @@ async function generateZayavka() {
     ['z-consignee', 'грузополучатель'],
     ['z-route', 'маршрут перевозки'],
     ['z-cargo-name', 'наименование груза'],
-    ['z-loading-datetime', 'дата и время погрузки'],
+    ['z-loading-date', 'дата погрузки'],
     ['z-loading-address', 'адрес погрузки'],
     ['z-unloading-address', 'адрес разгрузки'],
     ['z-amount', 'стоимость транспортировки'],
@@ -802,7 +802,7 @@ async function generateZayavka() {
       dimensions: val('z-dimensions') || 'Согласно ТТН',
     },
     loading: {
-      datetime: val('z-loading-datetime'),
+      datetime: formatLoadingDateTime(val('z-loading-date'), val('z-loading-time')),
       address:  val('z-loading-address'),
       contact:  val('z-loading-contact'),
     },
@@ -883,6 +883,8 @@ function resetZayavkaForm() {
     else if (el.id === 'z-documents') el.value = 'ТТН';
     else el.value = '';
   });
+  initZayavkaDates();
+  document.getElementById('z-loading-time').value = '10:00';
   document.getElementById('z-status').classList.remove('show');
 }
 
@@ -926,7 +928,7 @@ async function loadHistory() {
 
 loadCompanies();
 loadHistory();
-document.getElementById('contract-date').value = todayISO();
+initZayavkaDates();
 </script>
 </body>
 </html>
