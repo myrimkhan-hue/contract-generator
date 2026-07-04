@@ -1,0 +1,17 @@
+# Маршрутизация API и защита данных. Работает на Apache (Plesk).
+
+RewriteEngine On
+
+# Закрыть прямой доступ к папке с данными (история, контрагенты, файлы)
+RewriteRule ^data(/.*)?$ - [F,L]
+
+# Реальные файлы и папки (index.html, css, картинки) отдаём как есть
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Все /api/* маршруты — во фронт-контроллер
+RewriteRule ^api(/.*)?$ api/index.php [L,QSA]
+
+# По корню отдаём приложение
+DirectoryIndex index.html

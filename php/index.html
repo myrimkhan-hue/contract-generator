@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Генератор документов</title>
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --surface: #ffffff;
+    --ink: #1a1816;
+    --muted: #6b6760;
+    --line: #e5e1d8;
+    --accent: #2d5b3f;
+    --accent-hover: #234a32;
+    --accent-soft: #e8f0ea;
+    --warn: #b85c2e;
+    --danger: #b83b3b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
+  .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 13px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 5px; width: fit-content; }
+  .tab-btn { padding: 8px 20px; border-radius: 7px; border: none; background: transparent; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--muted); font-family: inherit; transition: all 0.15s; }
+  .tab-btn.active { background: var(--accent); color: white; }
+  .tab-btn:hover:not(.active) { background: var(--bg); color: var(--ink); }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 28px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; }
+  .panel h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }
+  .card { border: 1.5px solid var(--line); border-radius: 8px; padding: 14px; cursor: pointer; transition: all 0.15s; background: var(--surface); }
+  .card:hover { border-color: var(--muted); }
+  .card.active { border-color: var(--accent); background: var(--accent-soft); }
+  .card .type { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; font-weight: 600; }
+  .card .name { font-size: 14px; font-weight: 600; }
+  .card.active .type { color: var(--accent); }
+
+  .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .role { border: 1.5px solid var(--line); border-radius: 8px; padding: 16px; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .role:hover { border-color: var(--muted); }
+  .role.active { border-color: var(--accent); background: var(--accent-soft); }
+  .role .ico { font-size: 22px; display: block; margin-bottom: 6px; }
+  .role .label { font-size: 14px; font-weight: 600; }
+  .role .desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .field label .req { color: var(--danger); }
+  .field input, .field select, .field textarea {
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    padding: 9px 11px; border-radius: 6px; font-size: 14px; font-family: inherit;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .field input::placeholder, .field textarea::placeholder { color: #b3aea4; }
+  .field textarea { resize: vertical; min-height: 70px; }
+
+  .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 20px 0 10px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .section-label:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+
+  .actions { display: flex; gap: 10px; margin-top: 8px; }
+  .btn { padding: 11px 20px; border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-family: inherit; transition: all 0.15s; }
+  .btn:hover { background: var(--bg); }
+  .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .status { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 14px; display: none; }
+  .status.show { display: block; }
+  .status.success { background: var(--accent-soft); color: var(--accent); }
+  .status.error { background: #fbecec; color: var(--danger); }
+  .status.warn { background: #fdf3e8; color: var(--warn); }
+
+  .history-panel { position: sticky; top: 20px; align-self: start; }
+  .history-list { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; }
+  .history-item { border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; font-size: 13px; transition: background 0.15s; }
+  .history-item:hover { background: var(--bg); }
+  .history-item .num { font-weight: 600; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .history-item .meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .history-item .other { font-size: 12px; margin-top: 3px; }
+  .history-item a { color: var(--accent); text-decoration: none; font-size: 12px; font-weight: 500; margin-top: 6px; display: inline-block; }
+  .history-item a:hover { text-decoration: underline; }
+  .history-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
+  .type-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 6px; }
+  .type-tag.contract { background: #e6eef6; color: #2c5282; }
+  .type-tag.zayavka { background: #fef3e2; color: #92400e; }
+
+  /* Чипы-варианты для примечания */
+  .note-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .note-chip {
+    padding: 5px 12px; border-radius: 999px; border: 1.5px solid var(--line);
+    background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 500;
+    cursor: pointer; font-family: inherit; transition: all 0.15s; user-select: none;
+  }
+  .note-chip:hover { border-color: var(--muted); color: var(--ink); }
+  .note-chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .note-chip.active::before { content: "✓ "; }
+
+  /* Справочник контрагентов */
+  .contact-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .contact-bar select {
+    flex: 1; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    padding: 9px 11px; border-radius: 6px; font-size: 14px; font-family: inherit;
+  }
+  .contact-bar select:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .btn-sm { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .btn-danger-outline { color: var(--danger); border-color: var(--line); }
+  .btn-danger-outline:hover:not(:disabled) { background: #fbecec; border-color: var(--danger); }
+  .btn-danger-outline:disabled { opacity: 0.35; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Генератор документов</h1>
+    <span class="sub">Договоры и заявки на перевозку</span>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('contract')">📄 Договор</button>
+    <button class="tab-btn" onclick="switchTab('zayavka')">🚚 Заявка</button>
+  </div>
+
+  <div class="layout">
+    <div>
+
+      <!-- ====== ДОГОВОР ====== -->
+      <div id="tab-contract">
+        <div class="panel">
+          <h2><span class="step-num">1</span> Наша компания</h2>
+          <div class="cards" id="company-cards">
+            <div class="card-loading">Загрузка...</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2><span class="step-num">2</span> Наша роль в договоре</h2>
+          <div class="roles">
+            <div class="role" data-role="executor" onclick="setRole('executor')">
+              <span class="ico">🛠</span>
+              <div class="label">Исполнитель</div>
+              <div class="desc">Мы оказываем услуги</div>
+            </div>
+            <div class="role" data-role="customer" onclick="setRole('customer')">
+              <span class="ico">📋</span>
+              <div class="label">Заказчик</div>
+              <div class="desc">Мы заказываем услуги</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2><span class="step-num">3</span> Реквизиты второй стороны</h2>
+          <div class="contact-bar">
+            <select id="contact-picker" onchange="applyContact(this.value)">
+              <option value="">— выбрать из сохранённых —</option>
+            </select>
+            <button type="button" class="btn btn-sm" onclick="saveCurrentContact()">💾 Сохранить</button>
+            <button type="button" class="btn btn-sm btn-danger-outline" id="contact-del-btn" onclick="deleteCurrentContact()" disabled>🗑</button>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Тип <span class="req">*</span></label>
+              <select id="other-type" onchange="updateOtherTypeUI()">
+                <option value="ТОО">ТОО / АО (юр. лицо)</option>
+                <option value="ИП">ИП (индивидуальный предприниматель)</option>
+              </select>
+            </div>
+            <div class="field"></div>
+            <div class="field full">
+              <label id="other-name-label">Полное наименование <span class="req">*</span></label>
+              <input type="text" id="other-name" placeholder='ТОО "Название" или ИП "Название"'>
+            </div>
+            <div class="field">
+              <label>БИН / ИИН <span class="req">*</span></label>
+              <input type="text" id="other-bin" placeholder="123456789012">
+            </div>
+            <div class="field">
+              <label>Должность подписанта <span class="req">*</span></label>
+              <select id="other-position">
+                <option value="Директор">Директор</option>
+                <option value="Генеральный директор">Генеральный директор</option>
+                <option value="Заместитель директора">Заместитель директора</option>
+                <option value="Председатель правления">Председатель правления</option>
+                <option value="Руководитель">Руководитель</option>
+                <option value="ИП">ИП</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label>ФИО подписанта (полное) <span class="req">*</span></label>
+              <input type="text" id="other-signer-full" placeholder="Иванов Иван Иванович">
+            </div>
+            <div class="field">
+              <label>ФИО подписанта (сокр.)</label>
+              <input type="text" id="other-signer-short" placeholder="Иванов И. И.">
+            </div>
+            <div class="field" id="other-basis-field">
+              <label>Действует на основании <span class="req">*</span></label>
+              <select id="other-basis">
+                <option value="Устава">Устава</option>
+                <option value="Доверенности">Доверенности</option>
+                <option value="Приказа">Приказа</option>
+                <option value="Свидетельства о государственной регистрации ИП">Свидетельства о гос. регистрации ИП</option>
+                <option value="Талона предпринимателя">Талона предпринимателя</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label>Юридический адрес <span class="req">*</span></label>
+              <input type="text" id="other-address" placeholder="г. Алматы, ул. ...">
+            </div>
+            <div class="field">
+              <label>Расчётный счёт (ИИК)</label>
+              <input type="text" id="other-account" placeholder="KZ00 ...">
+            </div>
+            <div class="field">
+              <label>Банк</label>
+              <input type="text" id="other-bank" placeholder='АО "..."'>
+            </div>
+            <div class="field">
+              <label>БИК</label>
+              <input type="text" id="other-bik" placeholder="XXXXKZKX">
+            </div>
+            <div class="field">
+              <label>Телефон</label>
+              <input type="text" id="other-phone" placeholder="+7 ...">
+            </div>
+            <div class="field full">
+              <label>Email</label>
+              <input type="text" id="other-email" placeholder="info@example.kz">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2><span class="step-num">4</span> Сгенерировать договор</h2>
+          <div class="actions">
+            <button class="btn btn-primary" id="gen-btn" onclick="generate()">📄 Создать договор</button>
+            <button class="btn" onclick="resetForm()">Сбросить</button>
+          </div>
+          <div class="status" id="status"></div>
+        </div>
+      </div>
+
+      <!-- ====== ЗАЯВКА ====== -->
+      <div id="tab-zayavka" style="display:none">
+
+        <!-- Шаг 1: Наша компания + роль -->
+        <div class="panel">
+          <h2><span class="step-num">1</span> Наша компания и роль</h2>
+          <div class="cards" id="z-company-cards">
+            <div class="card-loading">Загрузка...</div>
+          </div>
+          <div class="roles" style="margin-top:14px">
+            <div class="role" data-zrole="customer" onclick="setZRole('customer')">
+              <span class="ico">📋</span>
+              <div class="label">Мы Заказчик</div>
+              <div class="desc">Нанимаем перевозчика</div>
+            </div>
+            <div class="role" data-zrole="executor" onclick="setZRole('executor')">
+              <span class="ico">🚛</span>
+              <div class="label">Мы Исполнитель</div>
+              <div class="desc">Оказываем услугу перевозки</div>
+            </div>
+          </div>
+
+          <!-- Менеджер (только когда Заказчик) -->
+          <div id="z-manager-block" class="form-grid" style="margin-top:14px;display:none">
+            <div class="field">
+              <label>Менеджер (ФИО)</label>
+              <input type="text" id="z-manager-name" placeholder="Наталья Кудиярова">
+            </div>
+            <div class="field">
+              <label>Телефон менеджера</label>
+              <input type="text" id="z-manager-phone" placeholder="+7 701 363 19 63">
+            </div>
+          </div>
+
+          <!-- Наши данные рейса (только когда Исполнитель) -->
+          <div id="z-own-trip-block" class="form-grid" style="margin-top:14px;display:none">
+            <div class="field full">
+              <label>Наш контакт по рейсу (имя, телефон)</label>
+              <input type="text" id="z-own-contact" placeholder="Айдин +7 776 650 3100">
+            </div>
+            <div class="field full">
+              <label>Данные а/м (номера) <span class="req">*</span></label>
+              <input type="text" id="z-own-vehicle" placeholder="767AMD05 / 54AEL05">
+            </div>
+            <div class="field full">
+              <label>Данные водителя (ФИО, ИИН, №у/л, когда и кем выдано) <span class="req">*</span></label>
+              <textarea id="z-own-driver" placeholder="Мусадинов Айдин Сабирович, ИИН 831210301590, УД № 056403979 выдано МВД HR от 02.05.2024г"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 2: Детали перевозки (всегда) -->
+        <div class="panel">
+          <h2><span class="step-num">2</span> Детали перевозки</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Грузоотправитель <span class="req">*</span></label>
+              <input type="text" id="z-shipper" placeholder='ТОО "Q7 Export Group"'>
+            </div>
+            <div class="field">
+              <label>Грузополучатель <span class="req">*</span></label>
+              <input type="text" id="z-consignee" placeholder='ТОО "RUKOS KZ"'>
+            </div>
+            <div class="field full">
+              <label>Маршрут перевозки <span class="req">*</span></label>
+              <input type="text" id="z-route" placeholder="РК, г. Алматы — РК, г. Атырау">
+            </div>
+            <div class="field full">
+              <label>Наименование груза <span class="req">*</span></label>
+              <input type="text" id="z-cargo-name" placeholder="Металлические стойки">
+            </div>
+            <div class="field">
+              <label>Количество мест</label>
+              <input type="text" id="z-qty" placeholder="13-20 шт">
+            </div>
+            <div class="field">
+              <label>Габариты / вес / объём</label>
+              <input type="text" id="z-dimensions" placeholder="Согласно ТТН">
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 3: Погрузка/разгрузка (всегда) -->
+        <div class="panel">
+          <h2><span class="step-num">3</span> Погрузка и разгрузка</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Дата погрузки <span class="req">*</span></label>
+              <input type="date" id="z-loading-date">
+            </div>
+            <div class="field">
+              <label>Время погрузки</label>
+              <input type="time" id="z-loading-time" value="10:00">
+            </div>
+            <div class="field full">
+              <label>Адрес пункта погрузки <span class="req">*</span></label>
+              <input type="text" id="z-loading-address" placeholder="РК, Алматинская область, Талгарский район, п. Жаналык">
+            </div>
+            <div class="field full">
+              <label>Контакт в пункте погрузки</label>
+              <input type="text" id="z-loading-contact" placeholder="+7 708 245 9488 Наби">
+            </div>
+            <div class="field full">
+              <label>Адрес пункта разгрузки <span class="req">*</span></label>
+              <input type="text" id="z-unloading-address" placeholder="РК, г. Атырау, просп. Абулхайыр Хана 45">
+            </div>
+            <div class="field full">
+              <label>Контакт в пункте разгрузки</label>
+              <input type="text" id="z-unloading-contact" placeholder="+7 771 867 6011">
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 4: Исполнитель (только когда Заказчик) -->
+        <div class="panel" id="z-panel-executor" style="display:none">
+          <h2><span class="step-num">4</span> Исполнитель</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Тип</label>
+              <select id="z-exec-type" onchange="updateZExecType()">
+                <option value="ИП">ИП</option>
+                <option value="ТОО">ТОО / АО</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Должность подписанта</label>
+              <input type="text" id="z-exec-position" placeholder="Директор / Руководитель">
+            </div>
+            <div class="field full">
+              <label>Название <span class="req">*</span></label>
+              <input type="text" id="z-exec-name" placeholder='ИП "Иззатов"'>
+            </div>
+            <div class="field full">
+              <label>ФИО подписанта <span class="req">*</span></label>
+              <input type="text" id="z-exec-signer-full" placeholder="Иззатов Джамшид Махмудович">
+            </div>
+            <div class="field">
+              <label>ФИО кратко</label>
+              <input type="text" id="z-exec-signer-short" placeholder="Иззатов Д. М.">
+            </div>
+            <div class="field" id="z-exec-basis-field">
+              <label>Действует на основании</label>
+              <input type="text" id="z-exec-basis" placeholder="Талона">
+            </div>
+            <div class="field full">
+              <label>Контактное лицо и телефон</label>
+              <input type="text" id="z-exec-contact" placeholder="Айдин +7 776 650 3100">
+            </div>
+            <div class="field full">
+              <label>Данные а/м (номера)</label>
+              <input type="text" id="z-vehicle" placeholder="767AMD05 / 54AEL05">
+            </div>
+            <div class="field full">
+              <label>Данные водителя (ФИО, ИИН, №у/л, когда и кем выдано)</label>
+              <textarea id="z-driver" placeholder="Мусадинов Айдин Сабирович, ИИН 831210301590, УД № 056403979 выдано МВД HR от 02.05.2024г"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 5: Реквизиты исполнителя (только когда Заказчик) -->
+        <div class="panel" id="z-panel-exec-bank" style="display:none">
+          <h2><span class="step-num">5</span> Реквизиты исполнителя</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>ИИН / БИН</label>
+              <input type="text" id="z-exec-bin" placeholder="820506302088">
+            </div>
+            <div class="field" id="z-talon-field">
+              <label>Талон №</label>
+              <input type="text" id="z-exec-talon" placeholder="KZ95TWQ00439395">
+            </div>
+            <div class="field full">
+              <label>Юридический адрес</label>
+              <input type="text" id="z-exec-address" placeholder="РК, г. Тараз, ул. Тонкуруш д. 9">
+            </div>
+            <div class="field full">
+              <label>Банк</label>
+              <input type="text" id="z-exec-bank" placeholder='АО "Jusan Bank"'>
+            </div>
+            <div class="field">
+              <label>БИК</label>
+              <input type="text" id="z-exec-bik" placeholder="TSESKZKA">
+            </div>
+            <div class="field">
+              <label>ИИК (расчётный счёт)</label>
+              <input type="text" id="z-exec-account" placeholder="KZ80998TTB000160808">
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 4: Заказчик (другая сторона, только когда Исполнитель) -->
+        <div class="panel" id="z-panel-customer-party" style="display:none">
+          <h2><span class="step-num">4</span> Заказчик (другая сторона)</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Тип</label>
+              <select id="z-cust-type">
+                <option value="ТОО">ТОО / АО</option>
+                <option value="ИП">ИП</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Должность подписанта</label>
+              <input type="text" id="z-cust-position" placeholder="Генеральный директор">
+            </div>
+            <div class="field full">
+              <label>Название <span class="req">*</span></label>
+              <input type="text" id="z-cust-name" placeholder='ТОО "Название компании"'>
+            </div>
+            <div class="field full">
+              <label>ФИО подписанта <span class="req">*</span></label>
+              <input type="text" id="z-cust-signer-full" placeholder="Иванов Иван Иванович">
+            </div>
+            <div class="field">
+              <label>ФИО кратко</label>
+              <input type="text" id="z-cust-signer-short" placeholder="Иванов И. И.">
+            </div>
+            <div class="field">
+              <label>Действует на основании</label>
+              <input type="text" id="z-cust-basis" placeholder="Устава">
+            </div>
+            <div class="field">
+              <label>Менеджер (имя)</label>
+              <input type="text" id="z-cust-manager" placeholder="Наталья">
+            </div>
+            <div class="field">
+              <label>Телефон менеджера</label>
+              <input type="text" id="z-cust-manager-phone" placeholder="+7 701 363 19 63">
+            </div>
+            <div class="field">
+              <label>БИН / ИИН</label>
+              <input type="text" id="z-cust-bin" placeholder="123456789012">
+            </div>
+            <div class="field">
+              <label>Телефон / Email</label>
+              <input type="text" id="z-cust-phone" placeholder="+7 ...">
+            </div>
+            <div class="field full">
+              <label>Юридический адрес</label>
+              <input type="text" id="z-cust-address" placeholder="г. Алматы, ул. ...">
+            </div>
+            <div class="field full">
+              <label>Банк</label>
+              <input type="text" id="z-cust-bank" placeholder='АО "..."'>
+            </div>
+            <div class="field">
+              <label>БИК</label>
+              <input type="text" id="z-cust-bik" placeholder="XXXXKZKX">
+            </div>
+            <div class="field">
+              <label>ИИК (расчётный счёт)</label>
+              <input type="text" id="z-cust-account" placeholder="KZ00 ...">
+            </div>
+          </div>
+        </div>
+
+        <!-- Шаг 6: Оплата (всегда) -->
+        <div class="panel">
+          <h2><span class="step-num" id="z-step-payment">6</span> Оплата и условия</h2>
+          <div class="form-grid">
+            <div class="field full">
+              <label>Стоимость транспортировки (тенге, цифрами) <span class="req">*</span></label>
+              <input type="text" id="z-amount" placeholder="980 000" oninput="formatSumInput(this)">
+            </div>
+            <div class="field">
+              <label>Предоплата, %</label>
+              <input type="number" id="z-prepay-pct" min="0" max="100" step="5" value="0" oninput="onPaySplitInput('pre')">
+            </div>
+            <div class="field">
+              <label>Постоплата, %</label>
+              <input type="number" id="z-postpay-pct" min="0" max="100" step="5" value="100" oninput="onPaySplitInput('post')">
+            </div>
+            <div class="field full">
+              <label>Способ оплаты</label>
+              <textarea id="z-payment-method">Оплата 100% безналичный расчет после выгрузки с предоставлением фото и видео, так же с предоставлением сканов, подписанных отгрузочных документов, ТТН и оригиналов выставленных АВР(ЭАВР), ЭСФ.</textarea>
+            </div>
+            <div class="field full">
+              <label>Условия оплаты</label>
+              <textarea id="z-payment-conditions">При форс мажорных обстоятельствах, оплата производится в течении 3-х банковских дней, с обязательным оповещением Исполнителя</textarea>
+            </div>
+            <div class="field">
+              <label>Сопроводительные документы</label>
+              <input type="text" id="z-documents" value="ТТН">
+            </div>
+            <div class="field full">
+              <label>Примечание — нажмите на варианты, чтобы добавить/убрать</label>
+              <div class="note-chips" id="z-note-chips"></div>
+              <textarea id="z-notes" oninput="syncNoteChips()" placeholder="Полная загрузка. Наличие цепей (4-6шт), стяжных ремней (4-6шт)"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2><span class="step-num" id="z-step-gen">7</span> Сгенерировать заявку</h2>
+          <div class="actions">
+            <button class="btn btn-primary" id="z-gen-btn" onclick="generateZayavka()">🚚 Создать заявку</button>
+            <button class="btn" onclick="resetZayavkaForm()">Сбросить</button>
+          </div>
+          <div class="status" id="z-status"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- История -->
+    <div class="history-panel">
+      <div class="panel">
+        <h2>Последние документы</h2>
+        <div class="history-list" id="history-list">
+          <div class="history-empty">История пуста</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let companies = [];
+let selectedCompanyId = null;
+let selectedRole = null;
+let zSelectedCompanyId = null;
+let zayavkaRole = null; // 'customer' | 'executor'
+let contacts = [];      // справочник контрагентов
+
+// === Вкладки ===
+function switchTab(tab) {
+  document.getElementById('tab-contract').style.display = tab === 'contract' ? '' : 'none';
+  document.getElementById('tab-zayavka').style.display = tab === 'zayavka' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i === 0 && tab === 'contract') || (i === 1 && tab === 'zayavka'));
+  });
+}
+
+// === Компании ===
+async function loadCompanies() {
+  const res = await fetch('/api/companies');
+  companies = await res.json();
+
+  // Договор
+  const c1 = document.getElementById('company-cards');
+  c1.innerHTML = companies.map(c => `
+    <div class="card" data-id="${c.id}" onclick="selectCompany('${c.id}')">
+      <div class="type">${c.type}</div>
+      <div class="name">${c.short}</div>
+    </div>
+  `).join('');
+
+  // Заявка
+  const c2 = document.getElementById('z-company-cards');
+  c2.innerHTML = companies.map(c => `
+    <div class="card z-card" data-id="${c.id}" onclick="zSelectCompany('${c.id}')">
+      <div class="type">${c.type}</div>
+      <div class="name">${c.short}</div>
+    </div>
+  `).join('');
+}
+
+function selectCompany(id) {
+  selectedCompanyId = id;
+  document.querySelectorAll('#tab-contract .card').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === id);
+  });
+}
+
+function zSelectCompany(id) {
+  zSelectedCompanyId = id;
+  document.querySelectorAll('.z-card').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === id);
+  });
+}
+
+function setRole(r) {
+  selectedRole = r;
+  document.querySelectorAll('.role').forEach(el => {
+    el.classList.toggle('active', el.dataset.role === r);
+  });
+}
+
+function updateOtherTypeUI() {
+  const type = document.getElementById('other-type').value;
+  const nameLabel = document.getElementById('other-name-label');
+  const nameInput = document.getElementById('other-name');
+  const basisSelect = document.getElementById('other-basis');
+  if (type === 'ИП') {
+    nameLabel.innerHTML = 'Полное наименование (ИП) <span class="req">*</span>';
+    nameInput.placeholder = 'ИП "Название"';
+    basisSelect.value = 'Талона предпринимателя';
+  } else {
+    nameLabel.innerHTML = 'Полное наименование <span class="req">*</span>';
+    nameInput.placeholder = 'ТОО "Название"';
+    basisSelect.value = 'Устава';
+  }
+}
+
+// === Справочник контрагентов ===
+// Соответствие поле контакта → id инпута в форме "Реквизиты второй стороны"
+const CONTACT_MAP = {
+  type: 'other-type', name: 'other-name', bin: 'other-bin',
+  position: 'other-position', signerFull: 'other-signer-full',
+  signerShort: 'other-signer-short', basis: 'other-basis', address: 'other-address',
+  account: 'other-account', bank: 'other-bank', bik: 'other-bik',
+  phone: 'other-phone', email: 'other-email',
+};
+
+async function loadContacts() {
+  try {
+    const res = await fetch('/api/contacts');
+    contacts = await res.json();
+  } catch (e) { contacts = []; }
+  renderContactPicker();
+}
+
+function renderContactPicker() {
+  const sel = document.getElementById('contact-picker');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— выбрать из сохранённых —</option>' +
+    contacts.map(c => `<option value="${c.id}">${c.label || c.name}</option>`).join('');
+  if (contacts.some(c => c.id === current)) sel.value = current;
+  document.getElementById('contact-del-btn').disabled = !sel.value;
+}
+
+function applyContact(id) {
+  document.getElementById('contact-del-btn').disabled = !id;
+  if (!id) return;
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('other-type').value = c.type || 'ТОО';
+  updateOtherTypeUI();
+  for (const [field, elId] of Object.entries(CONTACT_MAP)) {
+    if (field === 'type') continue;
+    const el = document.getElementById(elId);
+    if (el && c[field] !== undefined && c[field] !== '') el.value = c[field];
+  }
+}
+
+async function saveCurrentContact() {
+  const name = val('other-name');
+  if (!name) return showStatus('status', 'Сначала заполните название второй стороны.', 'warn');
+  const picker = document.getElementById('contact-picker');
+  // Если выбран существующий контакт — обновляем его, иначе создаём новый
+  const existing = contacts.find(c => c.id === picker.value);
+  const payload = { id: existing && existing.name === name ? existing.id : undefined };
+  for (const field of Object.keys(CONTACT_MAP)) payload[field] = val(CONTACT_MAP[field]);
+  try {
+    const res = await fetch('/api/contacts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const saved = await res.json();
+    if (!res.ok) throw new Error(saved.error);
+    await loadContacts();
+    document.getElementById('contact-picker').value = saved.id;
+    document.getElementById('contact-del-btn').disabled = false;
+    showStatus('status', `✓ Контрагент «${saved.name}» сохранён.`, 'success');
+  } catch (e) {
+    showStatus('status', 'Не удалось сохранить контрагента: ' + e.message, 'error');
+  }
+}
+
+async function deleteCurrentContact() {
+  const picker = document.getElementById('contact-picker');
+  const c = contacts.find(x => x.id === picker.value);
+  if (!c) return;
+  if (!confirm(`Удалить контрагента «${c.label || c.name}» из справочника?`)) return;
+  try {
+    await fetch('/api/contacts/' + encodeURIComponent(c.id), { method: 'DELETE' });
+    await loadContacts();
+    picker.value = '';
+    document.getElementById('contact-del-btn').disabled = true;
+  } catch (e) {
+    showStatus('status', 'Не удалось удалить: ' + e.message, 'error');
+  }
+}
+
+function updateZExecType() {
+  const type = document.getElementById('z-exec-type').value;
+  const basisInput = document.getElementById('z-exec-basis');
+  const talonField = document.getElementById('z-talon-field');
+  const posInput = document.getElementById('z-exec-position');
+  if (type === 'ИП') {
+    basisInput.placeholder = 'Талона';
+    posInput.placeholder = 'Директор / Руководитель';
+    talonField.style.display = '';
+  } else {
+    basisInput.placeholder = 'Устава';
+    posInput.placeholder = 'Генеральный директор';
+    talonField.style.display = 'none';
+  }
+}
+
+function setZRole(role) {
+  zayavkaRole = role;
+  document.querySelectorAll('[data-zrole]').forEach(el => {
+    el.classList.toggle('active', el.dataset.zrole === role);
+  });
+  const isExec = role === 'executor';
+  document.getElementById('z-manager-block').style.display      = isExec ? 'none' : '';
+  document.getElementById('z-own-trip-block').style.display     = isExec ? '' : 'none';
+  document.getElementById('z-panel-executor').style.display     = isExec ? 'none' : '';
+  document.getElementById('z-panel-exec-bank').style.display    = isExec ? 'none' : '';
+  document.getElementById('z-panel-customer-party').style.display = isExec ? '' : 'none';
+}
+
+function todayISO() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+// Разделение цифр пробелами: 1000000 → 1 000 000
+function formatSumInput(el) {
+  const raw = el.value.replace(/\D/g, '');
+  el.value = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : '';
+}
+
+// "2025-12-04" + "10:00" → "04 декабря 2025г, 10:00"
+const RU_MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function formatLoadingDateTime(dateISO, time) {
+  if (!dateISO) return '';
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const dateStr = `${String(d).padStart(2, '0')} ${RU_MONTHS[m - 1]} ${y}г`;
+  return time ? `${dateStr}, ${time}` : dateStr;
+}
+
+function initZayavkaDates() {
+  document.getElementById('z-loading-date').value = todayISO();
+}
+
+// === Способ оплаты: предоплата / постоплата ===
+function buildPaymentMethodText(pre) {
+  const post = 100 - pre;
+  const docs = 'сканов, подписанных отгрузочных документов, ТТН и оригиналов выставленных АВР(ЭАВР), ЭСФ';
+  if (pre <= 0) {
+    return `Оплата 100% безналичный расчет после выгрузки с предоставлением фото и видео, так же с предоставлением ${docs}.`;
+  }
+  if (pre >= 100) {
+    return 'Предоплата 100% безналичный расчет при погрузке. После выгрузки предоставляются фото и видео, а также сканы подписанных отгрузочных документов, ТТН и оригиналы выставленных АВР(ЭАВР), ЭСФ.';
+  }
+  return `Предоплата ${pre}% безналичный расчет при погрузке, постоплата ${post}% после выгрузки с предоставлением фото и видео, так же с предоставлением ${docs}.`;
+}
+
+function onPaySplitInput(which) {
+  const preEl = document.getElementById('z-prepay-pct');
+  const postEl = document.getElementById('z-postpay-pct');
+  const el = which === 'pre' ? preEl : postEl;
+  let v = parseInt(el.value, 10);
+  if (isNaN(v)) return; // поле пустое во время набора — не трогаем
+  v = Math.max(0, Math.min(100, v));
+  el.value = v;
+  (which === 'pre' ? postEl : preEl).value = 100 - v;
+  document.getElementById('z-payment-method').value = buildPaymentMethodText(parseInt(preEl.value, 10));
+}
+
+// === Примечание: готовые варианты-чипы ===
+const NOTE_OPTIONS = [
+  'Полная загрузка',
+  'Догруз',
+  'Наличие цепей (4-6шт)',
+  'Наличие стяжных ремней (4-6шт)',
+  'Наличие коников',
+  'Боковая растентовка',
+  'Верхняя погрузка',
+  'Пломбировка груза',
+  'GPS-мониторинг',
+];
+
+function renderNoteChips() {
+  const box = document.getElementById('z-note-chips');
+  box.innerHTML = NOTE_OPTIONS.map(opt =>
+    `<button type="button" class="note-chip" data-note="${opt}" onclick="toggleNoteChip(this)">${opt}</button>`
+  ).join('');
+  syncNoteChips();
+}
+
+function toggleNoteChip(btn) {
+  const phrase = btn.dataset.note;
+  const ta = document.getElementById('z-notes');
+  if (ta.value.includes(phrase)) {
+    // Убираем фразу и подчищаем оставшиеся разделители
+    ta.value = ta.value
+      .replace(phrase, '')
+      .replace(/\.\s*\./g, '.')
+      .replace(/^[\s.]+/, '')
+      .replace(/[\s.]+$/, '');
+  } else {
+    ta.value = ta.value.trim()
+      ? ta.value.replace(/[\s.]+$/, '') + '. ' + phrase
+      : phrase;
+  }
+  syncNoteChips();
+}
+
+// Подсветка чипов по текущему тексту (в т.ч. при ручном редактировании)
+function syncNoteChips() {
+  const text = document.getElementById('z-notes').value;
+  document.querySelectorAll('.note-chip').forEach(ch => {
+    ch.classList.toggle('active', text.includes(ch.dataset.note));
+  });
+}
+
+function showStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.className = 'status show ' + type;
+  el.textContent = msg;
+  if (type === 'success') setTimeout(() => el.classList.remove('show'), 5000);
+}
+
+function val(id) { return document.getElementById(id).value.trim(); }
+
+// === Договор ===
+async function generate() {
+  if (!selectedCompanyId) return showStatus('status', 'Выберите нашу компанию (шаг 1).', 'warn');
+  if (!selectedRole) return showStatus('status', 'Выберите нашу роль в договоре (шаг 2).', 'warn');
+
+  const required = [
+    ['other-name', 'название второй стороны'],
+    ['other-bin', 'БИН/ИИН'],
+    ['other-position', 'должность подписанта'],
+    ['other-signer-full', 'полное ФИО подписанта'],
+    ['other-basis', 'основание (Устав/Талон)'],
+    ['other-address', 'юридический адрес'],
+  ];
+  for (const [id, label] of required) {
+    if (!val(id)) return showStatus('status', `Заполните: ${label}.`, 'warn');
+  }
+
+  const other = {
+    type: val('other-type'),
+    name: val('other-name'),
+    bin: val('other-bin'),
+    position: val('other-position'),
+    signerFull: val('other-signer-full'),
+    signerShort: val('other-signer-short') || val('other-signer-full'),
+    basis: val('other-basis'),
+    address: val('other-address'),
+    account: val('other-account') || '—',
+    bank: val('other-bank') || '—',
+    bik: val('other-bik') || '—',
+    phone: val('other-phone') || '—',
+    email: val('other-email') || '—',
+  };
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true; btn.textContent = '⏳ Генерация...';
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ourCompanyId: selectedCompanyId, ourRole: selectedRole, other })
+    });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+    const blob = await res.blob();
+    const contractNumber = res.headers.get('X-Contract-Number') || '';
+    const disposition = res.headers.get('Content-Disposition') || '';
+    let filename = `Договор_${contractNumber}.docx`;
+    const m = disposition.match(/filename\*=UTF-8''([^;]+)/);
+    if (m) filename = decodeURIComponent(m[1]);
+    downloadBlob(blob, filename);
+    showStatus('status', `✓ Договор ${contractNumber} сгенерирован и скачан.`, 'success');
+    loadHistory();
+  } catch (err) {
+    showStatus('status', 'Ошибка: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '📄 Создать договор';
+  }
+}
+
+function resetForm() {
+  selectedCompanyId = null; selectedRole = null;
+  document.querySelectorAll('#tab-contract .card, .role').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('#tab-contract input').forEach(el => el.value = '');
+  document.getElementById('other-type').value = 'ТОО';
+  document.getElementById('contact-picker').value = '';
+  document.getElementById('contact-del-btn').disabled = true;
+  updateOtherTypeUI();
+  document.getElementById('status').classList.remove('show');
+}
+
+// === Заявка ===
+async function generateZayavka() {
+  if (!zSelectedCompanyId) return showStatus('z-status', 'Выберите нашу компанию (шаг 1).', 'warn');
+  if (!zayavkaRole) return showStatus('z-status', 'Выберите роль: Заказчик или Исполнитель (шаг 1).', 'warn');
+
+  const isExec = zayavkaRole === 'executor';
+
+  // Общие обязательные поля
+  const commonRequired = [
+    ['z-shipper', 'грузоотправитель'],
+    ['z-consignee', 'грузополучатель'],
+    ['z-route', 'маршрут перевозки'],
+    ['z-cargo-name', 'наименование груза'],
+    ['z-loading-date', 'дата погрузки'],
+    ['z-loading-address', 'адрес погрузки'],
+    ['z-unloading-address', 'адрес разгрузки'],
+    ['z-amount', 'стоимость транспортировки'],
+  ];
+  for (const [id, label] of commonRequired) {
+    if (!val(id)) return showStatus('z-status', `Заполните: ${label}.`, 'warn');
+  }
+
+  if (isExec) {
+    if (!val('z-cust-name')) return showStatus('z-status', 'Заполните: название Заказчика.', 'warn');
+    if (!val('z-own-vehicle')) return showStatus('z-status', 'Заполните: данные а/м.', 'warn');
+  } else {
+    if (!val('z-exec-name')) return showStatus('z-status', 'Заполните: название Исполнителя.', 'warn');
+    if (!val('z-exec-signer-full')) return showStatus('z-status', 'Заполните: ФИО подписанта Исполнителя.', 'warn');
+  }
+
+  const payload = {
+    ourCompanyId: zSelectedCompanyId,
+    ourRole: zayavkaRole,
+    manager: { name: val('z-manager-name'), phone: val('z-manager-phone') },
+    // Другая сторона как Заказчик (когда мы Исполнитель)
+    customer: {
+      type:        val('z-cust-type'),
+      name:        val('z-cust-name'),
+      position:    val('z-cust-position') || 'Директор',
+      signerFull:  val('z-cust-signer-full'),
+      signerShort: val('z-cust-signer-short') || val('z-cust-signer-full'),
+      basis:       val('z-cust-basis'),
+      manager:     val('z-cust-manager'),
+      managerPhone: val('z-cust-manager-phone'),
+      bin:     val('z-cust-bin'),
+      phone:   val('z-cust-phone'),
+      address: val('z-cust-address'),
+      bank:    val('z-cust-bank'),
+      bik:     val('z-cust-bik'),
+      account: val('z-cust-account'),
+    },
+    cargo: {
+      shipper:    val('z-shipper'),
+      consignee:  val('z-consignee'),
+      route:      val('z-route'),
+      name:       val('z-cargo-name'),
+      qty:        val('z-qty'),
+      dimensions: val('z-dimensions') || 'Согласно ТТН',
+    },
+    loading: {
+      datetime: formatLoadingDateTime(val('z-loading-date'), val('z-loading-time')),
+      address:  val('z-loading-address'),
+      contact:  val('z-loading-contact'),
+    },
+    unloading: {
+      address: val('z-unloading-address'),
+      contact: val('z-unloading-contact'),
+    },
+    // Исполнитель: либо другая сторона (мы Заказчик), либо наши данные рейса (мы Исполнитель)
+    executor: isExec ? {
+      contact: val('z-own-contact'),
+      vehicle: val('z-own-vehicle'),
+      driver:  val('z-own-driver'),
+    } : {
+      type:        val('z-exec-type'),
+      name:        val('z-exec-name'),
+      position:    val('z-exec-position') || 'Директор',
+      signerFull:  val('z-exec-signer-full'),
+      signerShort: val('z-exec-signer-short') || val('z-exec-signer-full'),
+      basis:       val('z-exec-basis'),
+      contact:     val('z-exec-contact'),
+      vehicle:     val('z-vehicle'),
+      driver:      val('z-driver'),
+      bin:         val('z-exec-bin'),
+      address:     val('z-exec-address'),
+      bank:        val('z-exec-bank'),
+      bik:         val('z-exec-bik'),
+      account:     val('z-exec-account'),
+      talon:       val('z-exec-talon'),
+    },
+    payment: {
+      amount:     val('z-amount').replace(/\s/g, ''),
+      method:     val('z-payment-method'),
+      conditions: val('z-payment-conditions'),
+      documents:  val('z-documents'),
+      notes:      val('z-notes'),
+    },
+  };
+
+  const btn = document.getElementById('z-gen-btn');
+  btn.disabled = true; btn.textContent = '⏳ Генерация...';
+
+  try {
+    const res = await fetch('/api/generate-zayavka', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+    const blob = await res.blob();
+    const num = res.headers.get('X-Zayavka-Number') || '';
+    const disposition = res.headers.get('Content-Disposition') || '';
+    let filename = `Заявка_${num}.docx`;
+    const m = disposition.match(/filename\*=UTF-8''([^;]+)/);
+    if (m) filename = decodeURIComponent(m[1]);
+    downloadBlob(blob, filename);
+    showStatus('z-status', `✓ Заявка ${num} сгенерирована и скачана.`, 'success');
+    loadHistory();
+  } catch (err) {
+    showStatus('z-status', 'Ошибка: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🚚 Создать заявку';
+  }
+}
+
+function resetZayavkaForm() {
+  zSelectedCompanyId = null;
+  zayavkaRole = null;
+  document.querySelectorAll('.z-card, [data-zrole]').forEach(el => el.classList.remove('active'));
+  // Скрыть ролевые блоки
+  document.getElementById('z-manager-block').style.display       = 'none';
+  document.getElementById('z-own-trip-block').style.display      = 'none';
+  document.getElementById('z-panel-executor').style.display      = 'none';
+  document.getElementById('z-panel-exec-bank').style.display     = 'none';
+  document.getElementById('z-panel-customer-party').style.display = 'none';
+  document.querySelectorAll('#tab-zayavka input, #tab-zayavka textarea').forEach(el => {
+    if (el.id === 'z-payment-method') el.value = 'Оплата 100% безналичный расчет после выгрузки с предоставлением фото и видео, так же с предоставлением сканов, подписанных отгрузочных документов, ТТН и оригиналов выставленных АВР(ЭАВР), ЭСФ.';
+    else if (el.id === 'z-payment-conditions') el.value = 'При форс мажорных обстоятельствах, оплата производится в течении 3-х банковских дней, с обязательным оповещением Исполнителя';
+    else if (el.id === 'z-documents') el.value = 'ТТН';
+    else el.value = '';
+  });
+  initZayavkaDates();
+  document.getElementById('z-loading-time').value = '10:00';
+  document.getElementById('z-prepay-pct').value = 0;
+  document.getElementById('z-postpay-pct').value = 100;
+  syncNoteChips();
+  document.getElementById('z-status').classList.remove('show');
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// === История ===
+async function loadHistory() {
+  const res = await fetch('/api/history');
+  const items = await res.json();
+  const container = document.getElementById('history-list');
+  if (items.length === 0) {
+    container.innerHTML = '<div class="history-empty">История пуста</div>';
+    return;
+  }
+  container.innerHTML = items.map(item => {
+    const d = new Date(item.date);
+    const dateStr = d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const isZayavka = item.type === 'zayavka';
+    const typeTag = isZayavka
+      ? '<span class="type-tag zayavka">Заявка</span>'
+      : '<span class="type-tag contract">Договор</span>';
+    const sub = isZayavka && item.route ? `<div class="other" style="color:var(--muted);font-size:11px">${item.route}</div>` : '';
+    return `
+      <div class="history-item">
+        <div class="num">${item.number}${typeTag}</div>
+        <div class="meta">${dateStr} · ${item.ourCompany}</div>
+        <div class="other">↔ ${item.otherName}</div>
+        ${sub}
+        <a href="/api/history/${encodeURIComponent(item.filename)}" download>↓ Скачать</a>
+      </div>
+    `;
+  }).join('');
+}
+
+loadCompanies();
+loadHistory();
+loadContacts();
+initZayavkaDates();
+renderNoteChips();
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<?php
+// Реквизиты ваших 3 компаний (отредактируйте при необходимости).
+// Аналог объекта OUR_COMPANIES из Node-версии.
+
+function our_companies() {
+  return [
+    'ava_solution' => [
+      'short'      => 'AVA Solution',
+      'prefix'     => 'AVA',
+      'type'       => 'ТОО',
+      'name'       => 'ТОО "AVA Solution"',
+      'bin'        => '180840002872',
+      'address'    => 'РК, г. Алматы, Жетысуский район, улица Жайсан 52',
+      'account'    => 'KZ168562203126096001',
+      'bank'       => 'АО «Банк ЦентрКредит», г. Алматы',
+      'bik'        => 'KCJBKZKX',
+      'position'   => 'Генеральный директор',
+      'signerFull' => 'Юань Вэн-Лун',
+      'signerShort'=> 'Юань В.',
+      'basis'      => 'Устава',
+      'talon'      => '',
+      'phone'      => '+7 747 523 52 90',
+      'email'      => 'info@ava-solution.kz',
+    ],
+    'alt_corp' => [
+      'short'      => 'ALT Corp',
+      'prefix'     => 'ALT',
+      'type'       => 'ТОО',
+      'name'       => 'ТОО "ALT Corp"',
+      'bin'        => '250640033474',
+      'address'    => 'РК, г. Алматы, Бостандыкский район, улица Егизбаева 7/6, кв. 7',
+      'account'    => 'KZ30601A861061562641',
+      'bank'       => 'АО «Народный Банк Казахстана»',
+      'bik'        => 'HSBKKZKX',
+      'position'   => 'Генеральный директор',
+      'signerFull' => 'Сапаргалиев Алмат Абилдаевич',
+      'signerShort'=> 'Сапаргалиев А. А.',
+      'basis'      => 'Устава',
+      'talon'      => '',
+      'phone'      => '+7 701 904 7777',
+      'email'      => 'altcorp01@gmail.com',
+    ],
+    'transit_trail' => [
+      'short'      => 'Transit Trail',
+      'prefix'     => 'TT',
+      'type'       => 'ИП',
+      'name'       => 'ИП "Transit Trail"',
+      'bin'        => '040624501090',
+      'address'    => 'РК, г. Алматы, Жетысуский район, улица Жайсан 52',
+      'account'    => 'KZ71722S000036131743',
+      'bank'       => 'АО «Kaspi Bank»',
+      'bik'        => 'CASPKZKA',
+      'position'   => 'Директор',
+      'signerFull' => 'Юань Эрик Вэнович',
+      'signerShort'=> 'Юань Э. В.',
+      'basis'      => 'Талона',
+      'talon'      => '',
+      'phone'      => '—',
+      'email'      => 'info@ava-solution.kz',
+    ],
+  ];
+}
