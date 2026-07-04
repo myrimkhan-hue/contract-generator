@@ -591,7 +591,7 @@ function switchTab(tab) {
 
 // === Компании ===
 async function loadCompanies() {
-  const res = await fetch('/api/companies');
+  const res = await fetch('api/index.php?r=companies');
   companies = await res.json();
 
   // Договор
@@ -662,7 +662,7 @@ const CONTACT_MAP = {
 
 async function loadContacts() {
   try {
-    const res = await fetch('/api/contacts');
+    const res = await fetch('api/index.php?r=contacts');
     contacts = await res.json();
   } catch (e) { contacts = []; }
   renderContactPicker();
@@ -700,7 +700,7 @@ async function saveCurrentContact() {
   const payload = { id: existing && existing.name === name ? existing.id : undefined };
   for (const field of Object.keys(CONTACT_MAP)) payload[field] = val(CONTACT_MAP[field]);
   try {
-    const res = await fetch('/api/contacts', {
+    const res = await fetch('api/index.php?r=contacts', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -721,7 +721,7 @@ async function deleteCurrentContact() {
   if (!c) return;
   if (!confirm(`Удалить контрагента «${c.label || c.name}» из справочника?`)) return;
   try {
-    await fetch('/api/contacts/' + encodeURIComponent(c.id), { method: 'DELETE' });
+    await fetch('api/index.php?r=contacts&id=' + encodeURIComponent(c.id), { method: 'DELETE' });
     await loadContacts();
     picker.value = '';
     document.getElementById('contact-del-btn').disabled = true;
@@ -903,7 +903,7 @@ async function generate() {
   btn.disabled = true; btn.textContent = '⏳ Генерация...';
 
   try {
-    const res = await fetch('/api/generate', {
+    const res = await fetch('api/index.php?r=generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ourCompanyId: selectedCompanyId, ourRole: selectedRole, other })
@@ -1039,7 +1039,7 @@ async function generateZayavka() {
   btn.disabled = true; btn.textContent = '⏳ Генерация...';
 
   try {
-    const res = await fetch('/api/generate-zayavka', {
+    const res = await fetch('api/index.php?r=generate-zayavka', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1096,7 +1096,7 @@ function downloadBlob(blob, filename) {
 
 // === История ===
 async function loadHistory() {
-  const res = await fetch('/api/history');
+  const res = await fetch('api/index.php?r=history');
   const items = await res.json();
   const container = document.getElementById('history-list');
   if (items.length === 0) {
@@ -1117,7 +1117,7 @@ async function loadHistory() {
         <div class="meta">${dateStr} · ${item.ourCompany}</div>
         <div class="other">↔ ${item.otherName}</div>
         ${sub}
-        <a href="/api/history/${encodeURIComponent(item.filename)}" download>↓ Скачать</a>
+        <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>
       </div>
     `;
   }).join('');

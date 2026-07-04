@@ -10,11 +10,24 @@ $TEMPLATE       = __DIR__ . '/../templates/template.docx';
 $ZAYAVKA_TEMPLATE = __DIR__ . '/../templates/template_zayavka.docx';
 
 // --- Разбор маршрута ---
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$after = preg_replace('#^.*?/api#', '', $uri);   // всё после /api
-$path = trim($after, '/');
-$segs = $path === '' ? [] : explode('/', $path);
+// Приоритет — параметр ?r= (работает без rewrite/.htaccess, на любом сервере).
+// Если его нет — разбираем «красивый» путь после /api (когда rewrite включён).
 $method = $_SERVER['REQUEST_METHOD'];
+if (isset($_GET['r']) && $_GET['r'] !== '') {
+  $r = $_GET['r'];
+  if ($r === 'history-file') {
+    $segs = ['history', isset($_GET['name']) ? $_GET['name'] : ''];
+  } elseif ($r === 'contacts' && isset($_GET['id']) && $_GET['id'] !== '') {
+    $segs = ['contacts', $_GET['id']];
+  } else {
+    $segs = [$r];
+  }
+} else {
+  $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+  $after = preg_replace('#^.*?/api#', '', $uri);   // всё после /api
+  $path = trim($after, '/');
+  $segs = $path === '' ? [] : explode('/', $path);
+}
 
 function body() {
   $raw = file_get_contents('php://input');
