@@ -1,20 +1,65 @@
 // Генератор договоров — Node.js сервер
 // Принимает реквизиты, подставляет в шаблон, отдаёт .docx
-// История и файлы хранятся в памяти (сбрасываются при перезапуске)
+// История, файлы и контрагенты хранятся на диске (в DATA_DIR).
+// Чтобы данные переживали передеплой Railway — примонтируйте volume к DATA_DIR.
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const AdmZip = require('adm-zip');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const TEMPLATE_PATH = path.join(__dirname, 'template.docx');
-const MAX_HISTORY = 20;
+const MAX_HISTORY = 50;
 
-// In-memory хранилище
-let history = [];
-const archiveBuffers = {};
+// === Хранилище на диске ===
+// DATA_DIR можно переопределить переменной окружения (например, точка монтирования volume в Railway).
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const FILES_DIR = path.join(DATA_DIR, 'files');
+const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
+const CONTACTS_FILE = path.join(DATA_DIR, 'contacts.json');
+
+fs.mkdirSync(FILES_DIR, { recursive: true });
+
+function loadJson(file, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+  } catch (e) {
+    return fallback;
+  }
+}
+function saveJson(file, data) {
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Не удалось сохранить', file, e.message);
+  }
+}
+
+// История: метаданные в history.json, сами .docx — в files/
+let history = loadJson(HISTORY_FILE, []);
+// Контрагенты (справочник второй стороны)
+let contacts = loadJson(CONTACTS_FILE, []);
+
+function persistHistory() { saveJson(HISTORY_FILE, history); }
+function persistContacts() { saveJson(CONTACTS_FILE, contacts); }
+
+// Сохранить сгенерированный документ на диск и добавить запись в историю
+function storeDocument(entry, buffer) {
+  try {
+    fs.writeFileSync(path.join(FILES_DIR, entry.filename), buffer);
+  } catch (e) {
+    console.error('Не удалось записать файл', entry.filename, e.message);
+  }
+  history.unshift(entry);
+  while (history.length > MAX_HISTORY) {
+    const old = history.pop();
+    try { fs.unlinkSync(path.join(FILES_DIR, old.filename)); } catch (e) { /* уже нет */ }
+  }
+  persistHistory();
+}
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(__dirname));
@@ -220,10 +265,8 @@ app.post('/api/generate', (req, res) => {
     const safeNumber = contractNumber.replace(/\//g, '-');
     const filename = `Договор_${safeNumber}_${safeOther}.docx`;
 
-    // Сохраняем в памяти
-    archiveBuffers[filename] = buffer;
-
     const entry = {
+      type: 'contract',
       number: contractNumber,
       date: new Date().toISOString(),
       ourCompany: our.short,
@@ -232,13 +275,7 @@ app.post('/api/generate', (req, res) => {
       otherBin: other.bin || '',
       filename,
     };
-    history.unshift(entry);
-
-    // Чистим лишнее из памяти
-    while (history.length > MAX_HISTORY) {
-      const old = history.pop();
-      delete archiveBuffers[old.filename];
-    }
+    storeDocument(entry, buffer);
 
     // Отдаём файл
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -257,13 +294,45 @@ app.get('/api/history', (req, res) => {
 
 app.get('/api/history/:filename', (req, res) => {
   const safe = path.basename(req.params.filename);
-  const buffer = archiveBuffers[safe];
-  if (!buffer) {
-    return res.status(404).json({ error: 'Файл не найден (сервер был перезапущен)' });
+  const filePath = path.join(FILES_DIR, safe);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Файл не найден' });
   }
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(safe)}`);
-  res.send(buffer);
+  res.send(fs.readFileSync(filePath));
+});
+
+// === Справочник контрагентов ===
+// Поля контрагента совпадают с телом other/z-cust/z-exec, плюс id и label.
+const CONTACT_FIELDS = ['type','name','bin','position','signerFull','signerShort',
+  'basis','address','account','bank','bik','phone','email'];
+
+app.get('/api/contacts', (req, res) => {
+  res.json(contacts);
+});
+
+app.post('/api/contacts', (req, res) => {
+  const body = req.body || {};
+  if (!body.name) {
+    return res.status(400).json({ error: 'Не указано название контрагента.' });
+  }
+  const contact = { id: body.id || String(Date.now()) };
+  for (const f of CONTACT_FIELDS) contact[f] = body[f] || '';
+  contact.label = contact.name;
+
+  const idx = contacts.findIndex(c => c.id === contact.id);
+  if (idx >= 0) contacts[idx] = contact;
+  else contacts.unshift(contact);
+  persistContacts();
+  res.json(contact);
+});
+
+app.delete('/api/contacts/:id', (req, res) => {
+  const before = contacts.length;
+  contacts = contacts.filter(c => c.id !== req.params.id);
+  if (contacts.length !== before) persistContacts();
+  res.json({ ok: true });
 });
 
 // === Заявки ===
@@ -495,8 +564,7 @@ app.post('/api/generate-zayavka', (req, res) => {
     const safeNumber = zayavkaNumber.replace(/\//g, '-');
     const filename = `Заявка_${safeNumber}_${safeExec}.docx`;
 
-    archiveBuffers[filename] = buffer;
-    history.unshift({
+    storeDocument({
       type: 'zayavka',
       number: zayavkaNumber,
       date: new Date().toISOString(),
@@ -505,11 +573,7 @@ app.post('/api/generate-zayavka', (req, res) => {
       otherName: isExecutor ? Z.name : I.name,
       route: (cargo && cargo.route) || '',
       filename,
-    });
-    while (history.length > MAX_HISTORY) {
-      const old = history.pop();
-      delete archiveBuffers[old.filename];
-    }
+    }, buffer);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);

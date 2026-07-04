@@ -110,6 +110,18 @@
   .note-chip:hover { border-color: var(--muted); color: var(--ink); }
   .note-chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .note-chip.active::before { content: "✓ "; }
+
+  /* Справочник контрагентов */
+  .contact-bar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .contact-bar select {
+    flex: 1; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+    padding: 9px 11px; border-radius: 6px; font-size: 14px; font-family: inherit;
+  }
+  .contact-bar select:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .btn-sm { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .btn-danger-outline { color: var(--danger); border-color: var(--line); }
+  .btn-danger-outline:hover:not(:disabled) { background: #fbecec; border-color: var(--danger); }
+  .btn-danger-outline:disabled { opacity: 0.35; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -154,6 +166,13 @@
 
         <div class="panel">
           <h2><span class="step-num">3</span> Реквизиты второй стороны</h2>
+          <div class="contact-bar">
+            <select id="contact-picker" onchange="applyContact(this.value)">
+              <option value="">— выбрать из сохранённых —</option>
+            </select>
+            <button type="button" class="btn btn-sm" onclick="saveCurrentContact()">💾 Сохранить</button>
+            <button type="button" class="btn btn-sm btn-danger-outline" id="contact-del-btn" onclick="deleteCurrentContact()" disabled>🗑</button>
+          </div>
           <div class="form-grid">
             <div class="field">
               <label>Тип <span class="req">*</span></label>
@@ -559,6 +578,7 @@ let selectedCompanyId = null;
 let selectedRole = null;
 let zSelectedCompanyId = null;
 let zayavkaRole = null; // 'customer' | 'executor'
+let contacts = [];      // справочник контрагентов
 
 // === Вкладки ===
 function switchTab(tab) {
@@ -627,6 +647,86 @@ function updateOtherTypeUI() {
     nameLabel.innerHTML = 'Полное наименование <span class="req">*</span>';
     nameInput.placeholder = 'ТОО "Название"';
     basisSelect.value = 'Устава';
+  }
+}
+
+// === Справочник контрагентов ===
+// Соответствие поле контакта → id инпута в форме "Реквизиты второй стороны"
+const CONTACT_MAP = {
+  type: 'other-type', name: 'other-name', bin: 'other-bin',
+  position: 'other-position', signerFull: 'other-signer-full',
+  signerShort: 'other-signer-short', basis: 'other-basis', address: 'other-address',
+  account: 'other-account', bank: 'other-bank', bik: 'other-bik',
+  phone: 'other-phone', email: 'other-email',
+};
+
+async function loadContacts() {
+  try {
+    const res = await fetch('/api/contacts');
+    contacts = await res.json();
+  } catch (e) { contacts = []; }
+  renderContactPicker();
+}
+
+function renderContactPicker() {
+  const sel = document.getElementById('contact-picker');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— выбрать из сохранённых —</option>' +
+    contacts.map(c => `<option value="${c.id}">${c.label || c.name}</option>`).join('');
+  if (contacts.some(c => c.id === current)) sel.value = current;
+  document.getElementById('contact-del-btn').disabled = !sel.value;
+}
+
+function applyContact(id) {
+  document.getElementById('contact-del-btn').disabled = !id;
+  if (!id) return;
+  const c = contacts.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('other-type').value = c.type || 'ТОО';
+  updateOtherTypeUI();
+  for (const [field, elId] of Object.entries(CONTACT_MAP)) {
+    if (field === 'type') continue;
+    const el = document.getElementById(elId);
+    if (el && c[field] !== undefined && c[field] !== '') el.value = c[field];
+  }
+}
+
+async function saveCurrentContact() {
+  const name = val('other-name');
+  if (!name) return showStatus('status', 'Сначала заполните название второй стороны.', 'warn');
+  const picker = document.getElementById('contact-picker');
+  // Если выбран существующий контакт — обновляем его, иначе создаём новый
+  const existing = contacts.find(c => c.id === picker.value);
+  const payload = { id: existing && existing.name === name ? existing.id : undefined };
+  for (const field of Object.keys(CONTACT_MAP)) payload[field] = val(CONTACT_MAP[field]);
+  try {
+    const res = await fetch('/api/contacts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const saved = await res.json();
+    if (!res.ok) throw new Error(saved.error);
+    await loadContacts();
+    document.getElementById('contact-picker').value = saved.id;
+    document.getElementById('contact-del-btn').disabled = false;
+    showStatus('status', `✓ Контрагент «${saved.name}» сохранён.`, 'success');
+  } catch (e) {
+    showStatus('status', 'Не удалось сохранить контрагента: ' + e.message, 'error');
+  }
+}
+
+async function deleteCurrentContact() {
+  const picker = document.getElementById('contact-picker');
+  const c = contacts.find(x => x.id === picker.value);
+  if (!c) return;
+  if (!confirm(`Удалить контрагента «${c.label || c.name}» из справочника?`)) return;
+  try {
+    await fetch('/api/contacts/' + encodeURIComponent(c.id), { method: 'DELETE' });
+    await loadContacts();
+    picker.value = '';
+    document.getElementById('contact-del-btn').disabled = true;
+  } catch (e) {
+    showStatus('status', 'Не удалось удалить: ' + e.message, 'error');
   }
 }
 
@@ -830,6 +930,8 @@ function resetForm() {
   document.querySelectorAll('#tab-contract .card, .role').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('#tab-contract input').forEach(el => el.value = '');
   document.getElementById('other-type').value = 'ТОО';
+  document.getElementById('contact-picker').value = '';
+  document.getElementById('contact-del-btn').disabled = true;
   updateOtherTypeUI();
   document.getElementById('status').classList.remove('show');
 }
@@ -1023,6 +1125,7 @@ async function loadHistory() {
 
 loadCompanies();
 loadHistory();
+loadContacts();
 initZayavkaDates();
 renderNoteChips();
 </script>
