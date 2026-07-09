@@ -34,10 +34,10 @@ function nextSequence($key) {
   return $n;
 }
 
-// Уникальный номер документа: базовый, либо с суффиксом -N для 2-го и далее за день
+// Уникальный номер документа: базовый, либо с суффиксом /N для 2-го и далее за день
 function uniqueDocNumber($base) {
   $n = nextSequence($base);
-  return $n <= 1 ? $base : $base . '-' . $n;
+  return $n <= 1 ? $base : $base . '/' . $n;
 }
 
 function loadJson($file, $fallback) {
