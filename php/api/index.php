@@ -182,6 +182,63 @@ try {
     exit;
   }
 
+  // === Экспорт базы договоров в CSV (для Excel) ===
+  if ($segs === ['deals-export'] && $method === 'GET') {
+    $deals = loadDeals();
+    $cols = ['Номер','Дата','Наша компания','Наша роль','Тип контрагента','Контрагент','БИН/ИИН',
+      'Должность','Подписант','Основание','Адрес','Счёт','Банк','БИК','Телефон','Email','Заявок','Источник'];
+    $esc = function ($v) {
+      $v = (string)$v;
+      if (preg_match('/[";\n\r]/', $v)) $v = '"' . str_replace('"', '""', $v) . '"';
+      return $v;
+    };
+    $out = "\xEF\xBB\xBF"; // UTF-8 BOM, чтобы Excel корректно показал кириллицу
+    $out .= implode(';', array_map($esc, $cols)) . "\r\n";
+    foreach ($deals as $d) {
+      $cp = isset($d['counterparty']) ? $d['counterparty'] : [];
+      $role = ($d['ourRole'] ?? '') === 'executor' ? 'Исполнитель' : (($d['ourRole'] ?? '') === 'customer' ? 'Заказчик' : '');
+      $zc = isset($d['zayavki']) && is_array($d['zayavki']) ? count($d['zayavki']) : 0;
+      $row = [
+        $d['number'] ?? '', $d['dateRu'] ?? '', $d['ourCompany'] ?? '', $role,
+        $cp['type'] ?? '', $cp['name'] ?? '', $cp['bin'] ?? '', $cp['position'] ?? '', $cp['signerFull'] ?? '',
+        $cp['basis'] ?? '', $cp['address'] ?? '', $cp['account'] ?? '', $cp['bank'] ?? '', $cp['bik'] ?? '',
+        $cp['phone'] ?? '', $cp['email'] ?? '', $zc, (($d['source'] ?? '') === 'manual' ? 'вручную' : 'сгенерирован'),
+      ];
+      $out .= implode(';', array_map($esc, $row)) . "\r\n";
+    }
+    header('Content-Type: text/csv; charset=utf-8');
+    header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode('База_договоров.csv'));
+    echo $out;
+    exit;
+  }
+
+  // === Резервная копия / восстановление ===
+  if ($segs === ['backup'] && $method === 'GET') {
+    $data = [
+      'version'  => 1,
+      'deals'    => loadDeals(),
+      'contacts' => loadContacts(),
+      'history'  => loadHistory(),
+      'counters' => loadJson(COUNTERS_FILE, []),
+    ];
+    header('Content-Type: application/json; charset=utf-8');
+    header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode('backup_generator.json'));
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+  }
+  if ($segs === ['restore'] && $method === 'POST') {
+    $b = body();
+    if (!isset($b['deals']) && !isset($b['contacts']) && !isset($b['history'])) {
+      jsonResponse(['error' => 'Файл не похож на резервную копию.'], 400); exit;
+    }
+    if (isset($b['deals'])    && is_array($b['deals']))    saveDeals($b['deals']);
+    if (isset($b['contacts']) && is_array($b['contacts'])) saveJson(CONTACTS_FILE, $b['contacts']);
+    if (isset($b['history'])  && is_array($b['history']))  saveJson(HISTORY_FILE, $b['history']);
+    if (isset($b['counters']) && is_array($b['counters'])) saveJson(COUNTERS_FILE, $b['counters']);
+    jsonResponse(['ok' => true]);
+    exit;
+  }
+
   // === POST /api/generate (договор) ===
   if ($method === 'POST' && $segs === ['generate']) {
     $b = body();
@@ -434,6 +491,27 @@ try {
       'route' => pick($cargo, 'route', ''),
       'filename' => $filename,
     ], $buffer);
+
+    // Привязать заявку к договору в базе (если указан номер договора и он там есть)
+    if ($contractNumber !== '') {
+      $deals = loadDeals();
+      foreach ($deals as $i => $d) {
+        if ($d['number'] !== $contractNumber) continue;
+        if (!isset($deals[$i]['zayavki']) || !is_array($deals[$i]['zayavki'])) $deals[$i]['zayavki'] = [];
+        $exists = false;
+        foreach ($deals[$i]['zayavki'] as $z) if (($z['number'] ?? '') === $zayavkaNumber) { $exists = true; break; }
+        if (!$exists) {
+          array_unshift($deals[$i]['zayavki'], [
+            'number'   => $zayavkaNumber,
+            'dateRu'   => $dateStr,
+            'route'    => pick($cargo, 'route', ''),
+            'filename' => $filename,
+          ]);
+          saveDeals($deals);
+        }
+        break;
+      }
+    }
 
     sendDocx($buffer, $filename, 'X-Zayavka-Number', $zayavkaNumber);
     exit;

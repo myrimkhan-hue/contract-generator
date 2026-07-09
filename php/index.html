@@ -752,6 +752,21 @@
                  style="width:100%;margin-bottom:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:9px 11px;border-radius:6px;font-size:14px;font-family:inherit">
           <div id="deals-list"><div class="history-empty">База пуста</div></div>
         </div>
+
+        <div class="panel">
+          <h2>Данные базы</h2>
+          <div class="actions" style="flex-wrap:wrap">
+            <button class="btn" onclick="exportDeals()">📊 Экспорт в Excel (CSV)</button>
+            <button class="btn" onclick="backupData()">⬇️ Резервная копия</button>
+            <label class="btn" style="cursor:pointer;margin:0">⬆️ Восстановить из файла
+              <input type="file" accept="application/json,.json" style="display:none" onchange="restoreData(this)">
+            </label>
+          </div>
+          <div style="color:var(--muted);font-size:12px;margin-top:10px">
+            Экспорт — таблица договоров для Excel. Резервная копия — файл со всей базой,
+            контрагентами и историей (для восстановления или переноса).
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1127,11 +1142,18 @@ function renderDeals() {
       ? '<span class="type-tag" style="background:#eee;color:#555">вручную</span>'
       : '<span class="type-tag contract">сгенерирован</span>';
     const meta = [d.dateRu, d.ourCompany, roleRu].filter(Boolean).map(escapeHtml).join(' · ');
+    const zs = Array.isArray(d.zayavki) ? d.zayavki : [];
+    const zLine = zs.length
+      ? `<div class="other" style="color:var(--muted);font-size:11px;margin-top:4px">Заявки (${zs.length}): `
+        + zs.map(z => `<a href="api/index.php?r=history-file&name=${encodeURIComponent(z.filename)}" download>${escapeHtml(z.number)}</a>`).join(', ')
+        + '</div>'
+      : '';
     return `
       <div class="history-item">
         <div class="num">${escapeHtml(d.number)}${srcTag}</div>
         <div class="meta">${meta}</div>
         <div class="other">↔ ${escapeHtml(cp.name || '')}${cp.bin ? ' · БИН ' + escapeHtml(cp.bin) : ''}</div>
+        ${zLine}
         <div style="margin-top:6px;display:flex;gap:14px;flex-wrap:wrap">
           <a href="#" onclick="createZayavkaFromDealId('${d.id}');return false;">🚚 Создать заявку</a>
           <a href="#" onclick="editDeal('${d.id}');return false;">✎ Изменить</a>
@@ -1214,6 +1236,41 @@ async function deleteDealById(id) {
   } catch (e) {
     showStatus('d-status', 'Не удалось удалить: ' + e.message, 'error');
   }
+}
+
+// === Экспорт / резервная копия / восстановление ===
+function downloadUrl(url) {
+  const a = document.createElement('a');
+  a.href = url; a.download = '';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function exportDeals() { downloadUrl('api/index.php?r=deals-export'); }
+function backupData() { downloadUrl('api/index.php?r=backup'); }
+
+function restoreData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!confirm('Восстановление ЗАМЕНИТ текущую базу договоров, контрагентов и историю данными из файла. Продолжить?')) {
+    input.value = ''; return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const data = JSON.parse(reader.result);
+      const res = await fetch('api/index.php?r=restore', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j.error || 'Ошибка');
+      await loadDeals(); await loadContacts(); await loadHistory();
+      showStatus('d-status', '✓ Данные восстановлены из резервной копии.', 'success');
+    } catch (e) {
+      showStatus('d-status', 'Не удалось восстановить: ' + e.message, 'error');
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 // === Способ оплаты: предоплата / постоплата ===
