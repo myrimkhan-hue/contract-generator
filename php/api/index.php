@@ -186,6 +186,7 @@ try {
     $unloading = isset($b['unloading']) && is_array($b['unloading']) ? $b['unloading'] : [];
     $executor  = isset($b['executor'])  && is_array($b['executor'])  ? $b['executor']  : [];
     $payment   = isset($b['payment'])   && is_array($b['payment'])   ? $b['payment']   : [];
+    $contractNumber = pick($b, 'contractNumber', '');
 
     if (!$ourCompanyId || !isset($companies[$ourCompanyId])) {
       jsonResponse(['error' => 'Не выбрана наша компания.'], 400); exit;
@@ -266,6 +267,7 @@ try {
     $values = [
       'НОМЕР_ЗАЯВКИ' => $zayavkaNumber,
       'ДАТА_ЗАЯВКИ' => $dateStr,
+      'НОМЕР_ДОГОВОРА' => $contractNumber !== '' ? $contractNumber : '—',
       'ЗАКАЗЧИК_НАЗВАНИЕ' => $Z['name'],
       'ЗАКАЗЧИК_КРАТКОЕ' => $Z['name'],
       'ЗАКАЗЧИК_ДОЛЖНОСТЬ' => $Z['position'],

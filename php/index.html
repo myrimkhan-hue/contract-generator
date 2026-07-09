@@ -167,11 +167,11 @@
         <div class="panel">
           <h2><span class="step-num">3</span> Реквизиты второй стороны</h2>
           <div class="contact-bar">
-            <select id="contact-picker" onchange="applyContact(this.value)">
+            <select id="contact-picker" onchange="applyContact('contract', this.value)">
               <option value="">— выбрать из сохранённых —</option>
             </select>
-            <button type="button" class="btn btn-sm" onclick="saveCurrentContact()">💾 Сохранить</button>
-            <button type="button" class="btn btn-sm btn-danger-outline" id="contact-del-btn" onclick="deleteCurrentContact()" disabled>🗑</button>
+            <button type="button" class="btn btn-sm" onclick="saveContact('contract')">💾 Сохранить</button>
+            <button type="button" class="btn btn-sm btn-danger-outline" id="contact-del-btn" onclick="deleteContact('contract')" disabled>🗑</button>
           </div>
           <div class="form-grid">
             <div class="field">
@@ -311,6 +311,11 @@
         <div class="panel">
           <h2><span class="step-num">2</span> Детали перевозки</h2>
           <div class="form-grid">
+            <div class="field full">
+              <label>Номер договора <span style="color:var(--muted);font-weight:400">(если заявка — приложение к договору)</span></label>
+              <input type="text" id="z-contract-number" list="contract-numbers" placeholder="напр. AVA-EX-0407/2026 — или выберите из списка">
+              <datalist id="contract-numbers"></datalist>
+            </div>
             <div class="field">
               <label>Грузоотправитель <span class="req">*</span></label>
               <input type="text" id="z-shipper" placeholder='ТОО "Q7 Export Group"'>
@@ -372,6 +377,13 @@
         <!-- Шаг 4: Исполнитель (только когда Заказчик) -->
         <div class="panel" id="z-panel-executor" style="display:none">
           <h2><span class="step-num">4</span> Исполнитель</h2>
+          <div class="contact-bar">
+            <select id="zexec-contact-picker" onchange="applyContact('zexec', this.value)">
+              <option value="">— выбрать из сохранённых —</option>
+            </select>
+            <button type="button" class="btn btn-sm" onclick="saveContact('zexec')">💾 Сохранить</button>
+            <button type="button" class="btn btn-sm btn-danger-outline" id="zexec-contact-del-btn" onclick="deleteContact('zexec')" disabled>🗑</button>
+          </div>
           <div class="form-grid">
             <div class="field">
               <label>Тип</label>
@@ -449,6 +461,13 @@
         <!-- Шаг 4: Заказчик (другая сторона, только когда Исполнитель) -->
         <div class="panel" id="z-panel-customer-party" style="display:none">
           <h2><span class="step-num">4</span> Заказчик (другая сторона)</h2>
+          <div class="contact-bar">
+            <select id="zcust-contact-picker" onchange="applyContact('zcust', this.value)">
+              <option value="">— выбрать из сохранённых —</option>
+            </select>
+            <button type="button" class="btn btn-sm" onclick="saveContact('zcust')">💾 Сохранить</button>
+            <button type="button" class="btn btn-sm btn-danger-outline" id="zcust-contact-del-btn" onclick="deleteContact('zcust')" disabled>🗑</button>
+          </div>
           <div class="form-grid">
             <div class="field">
               <label>Тип</label>
@@ -650,55 +669,95 @@ function updateOtherTypeUI() {
   }
 }
 
-// === Справочник контрагентов ===
-// Соответствие поле контакта → id инпута в форме "Реквизиты второй стороны"
-const CONTACT_MAP = {
-  type: 'other-type', name: 'other-name', bin: 'other-bin',
-  position: 'other-position', signerFull: 'other-signer-full',
-  signerShort: 'other-signer-short', basis: 'other-basis', address: 'other-address',
-  account: 'other-account', bank: 'other-bank', bik: 'other-bik',
-  phone: 'other-phone', email: 'other-email',
+// === Справочник контрагентов (общий для договора и заявки) ===
+// Профили форм: какой пикер/кнопки/статус и куда подставлять поля контакта.
+const CONTACT_FORMS = {
+  contract: {
+    pickerId: 'contact-picker', delBtnId: 'contact-del-btn', statusId: 'status',
+    typeId: 'other-type', afterApply: updateOtherTypeUI,
+    map: {
+      type: 'other-type', name: 'other-name', bin: 'other-bin',
+      position: 'other-position', signerFull: 'other-signer-full',
+      signerShort: 'other-signer-short', basis: 'other-basis', address: 'other-address',
+      account: 'other-account', bank: 'other-bank', bik: 'other-bik',
+      phone: 'other-phone', email: 'other-email',
+    },
+  },
+  // Заказчик в заявке (когда мы Исполнитель)
+  zcust: {
+    pickerId: 'zcust-contact-picker', delBtnId: 'zcust-contact-del-btn', statusId: 'z-status',
+    typeId: 'z-cust-type',
+    map: {
+      type: 'z-cust-type', name: 'z-cust-name', bin: 'z-cust-bin',
+      position: 'z-cust-position', signerFull: 'z-cust-signer-full',
+      signerShort: 'z-cust-signer-short', basis: 'z-cust-basis', address: 'z-cust-address',
+      account: 'z-cust-account', bank: 'z-cust-bank', bik: 'z-cust-bik', phone: 'z-cust-phone',
+    },
+  },
+  // Исполнитель в заявке (когда мы Заказчик)
+  zexec: {
+    pickerId: 'zexec-contact-picker', delBtnId: 'zexec-contact-del-btn', statusId: 'z-status',
+    typeId: 'z-exec-type', afterApply: updateZExecType,
+    map: {
+      type: 'z-exec-type', name: 'z-exec-name', bin: 'z-exec-bin',
+      position: 'z-exec-position', signerFull: 'z-exec-signer-full',
+      signerShort: 'z-exec-signer-short', basis: 'z-exec-basis', address: 'z-exec-address',
+      account: 'z-exec-account', bank: 'z-exec-bank', bik: 'z-exec-bik',
+    },
+  },
 };
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+}
+// Метка контрагента: название + БИН/ИИН — чтобы различать одноимённые компании
+function contactLabel(c) {
+  return (c.name || '') + (c.bin ? ' — ' + c.bin : '');
+}
 
 async function loadContacts() {
   try {
     const res = await fetch('api/index.php?r=contacts');
     contacts = await res.json();
   } catch (e) { contacts = []; }
-  renderContactPicker();
+  Object.keys(CONTACT_FORMS).forEach(renderContactPicker);
 }
 
-function renderContactPicker() {
-  const sel = document.getElementById('contact-picker');
+function renderContactPicker(formKey) {
+  const f = CONTACT_FORMS[formKey];
+  const sel = document.getElementById(f.pickerId);
+  if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">— выбрать из сохранённых —</option>' +
-    contacts.map(c => `<option value="${c.id}">${c.label || c.name}</option>`).join('');
+    contacts.map(c => `<option value="${c.id}">${escapeHtml(contactLabel(c))}</option>`).join('');
   if (contacts.some(c => c.id === current)) sel.value = current;
-  document.getElementById('contact-del-btn').disabled = !sel.value;
+  document.getElementById(f.delBtnId).disabled = !sel.value;
 }
 
-function applyContact(id) {
-  document.getElementById('contact-del-btn').disabled = !id;
+function applyContact(formKey, id) {
+  const f = CONTACT_FORMS[formKey];
+  document.getElementById(f.delBtnId).disabled = !id;
   if (!id) return;
   const c = contacts.find(x => x.id === id);
   if (!c) return;
-  document.getElementById('other-type').value = c.type || 'ТОО';
-  updateOtherTypeUI();
-  for (const [field, elId] of Object.entries(CONTACT_MAP)) {
+  if (f.typeId && c.type) document.getElementById(f.typeId).value = c.type;
+  if (f.afterApply) f.afterApply();
+  for (const [field, elId] of Object.entries(f.map)) {
     if (field === 'type') continue;
     const el = document.getElementById(elId);
     if (el && c[field] !== undefined && c[field] !== '') el.value = c[field];
   }
 }
 
-async function saveCurrentContact() {
-  const name = val('other-name');
-  if (!name) return showStatus('status', 'Сначала заполните название второй стороны.', 'warn');
-  const picker = document.getElementById('contact-picker');
-  // Если выбран существующий контакт — обновляем его, иначе создаём новый
+async function saveContact(formKey) {
+  const f = CONTACT_FORMS[formKey];
+  const name = val(f.map.name);
+  if (!name) return showStatus(f.statusId, 'Сначала заполните название контрагента.', 'warn');
+  const picker = document.getElementById(f.pickerId);
+  // Если выбран существующий контакт с тем же названием — обновляем, иначе создаём новый
   const existing = contacts.find(c => c.id === picker.value);
   const payload = { id: existing && existing.name === name ? existing.id : undefined };
-  for (const field of Object.keys(CONTACT_MAP)) payload[field] = val(CONTACT_MAP[field]);
+  for (const [field, elId] of Object.entries(f.map)) payload[field] = val(elId);
   try {
     const res = await fetch('api/index.php?r=contacts', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -707,26 +766,27 @@ async function saveCurrentContact() {
     const saved = await res.json();
     if (!res.ok) throw new Error(saved.error);
     await loadContacts();
-    document.getElementById('contact-picker').value = saved.id;
-    document.getElementById('contact-del-btn').disabled = false;
-    showStatus('status', `✓ Контрагент «${saved.name}» сохранён.`, 'success');
+    document.getElementById(f.pickerId).value = saved.id;
+    document.getElementById(f.delBtnId).disabled = false;
+    showStatus(f.statusId, `✓ Контрагент «${saved.name}» сохранён.`, 'success');
   } catch (e) {
-    showStatus('status', 'Не удалось сохранить контрагента: ' + e.message, 'error');
+    showStatus(f.statusId, 'Не удалось сохранить контрагента: ' + e.message, 'error');
   }
 }
 
-async function deleteCurrentContact() {
-  const picker = document.getElementById('contact-picker');
+async function deleteContact(formKey) {
+  const f = CONTACT_FORMS[formKey];
+  const picker = document.getElementById(f.pickerId);
   const c = contacts.find(x => x.id === picker.value);
   if (!c) return;
-  if (!confirm(`Удалить контрагента «${c.label || c.name}» из справочника?`)) return;
+  if (!confirm(`Удалить «${contactLabel(c)}» из справочника?`)) return;
   try {
     await fetch('api/index.php?r=contacts&id=' + encodeURIComponent(c.id), { method: 'DELETE' });
     await loadContacts();
     picker.value = '';
-    document.getElementById('contact-del-btn').disabled = true;
+    document.getElementById(f.delBtnId).disabled = true;
   } catch (e) {
-    showStatus('status', 'Не удалось удалить: ' + e.message, 'error');
+    showStatus(f.statusId, 'Не удалось удалить: ' + e.message, 'error');
   }
 }
 
@@ -969,6 +1029,7 @@ async function generateZayavka() {
   const payload = {
     ourCompanyId: zSelectedCompanyId,
     ourRole: zayavkaRole,
+    contractNumber: val('z-contract-number'),
     manager: { name: val('z-manager-name'), phone: val('z-manager-phone') },
     // Другая сторона как Заказчик (когда мы Исполнитель)
     customer: {
@@ -1081,6 +1142,13 @@ function resetZayavkaForm() {
   document.getElementById('z-loading-time').value = '10:00';
   document.getElementById('z-prepay-pct').value = 0;
   document.getElementById('z-postpay-pct').value = 100;
+  ['zcust', 'zexec'].forEach(k => {
+    const f = CONTACT_FORMS[k];
+    const p = document.getElementById(f.pickerId);
+    if (p) p.value = '';
+    const d = document.getElementById(f.delBtnId);
+    if (d) d.disabled = true;
+  });
   syncNoteChips();
   document.getElementById('z-status').classList.remove('show');
 }
@@ -1098,6 +1166,12 @@ function downloadBlob(blob, filename) {
 async function loadHistory() {
   const res = await fetch('api/index.php?r=history');
   const items = await res.json();
+  // Подсказки номеров договоров для поля «Номер договора» в заявке
+  const dl = document.getElementById('contract-numbers');
+  if (dl) {
+    const nums = [...new Set(items.filter(i => i.type === 'contract').map(i => i.number))];
+    dl.innerHTML = nums.map(n => `<option value="${escapeHtml(n)}">`).join('');
+  }
   const container = document.getElementById('history-list');
   if (items.length === 0) {
     container.innerHTML = '<div class="history-empty">История пуста</div>';
