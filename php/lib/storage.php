@@ -53,6 +53,33 @@ function saveJson($file, $data) {
 function loadHistory()  { return loadJson(HISTORY_FILE, []); }
 function loadContacts() { return loadJson(CONTACTS_FILE, []); }
 
+// === База договоров ===
+define('DEALS_FILE', DATA_DIR . '/deals.json');
+function loadDeals() { return loadJson(DEALS_FILE, []); }
+function saveDeals($deals) { saveJson(DEALS_FILE, $deals); }
+
+// Добавить/обновить договор в базе. Дедуп по номеру (один номер — одна запись).
+function upsertDeal($deal) {
+  $deals = loadDeals();
+  $idx = -1;
+  foreach ($deals as $i => $d) {
+    if ((!empty($deal['id']) && $d['id'] === $deal['id']) || $d['number'] === $deal['number']) { $idx = $i; break; }
+  }
+  if (empty($deal['id'])) {
+    $deal['id'] = $idx >= 0 ? $deals[$idx]['id'] : (string) round(microtime(true) * 1000);
+  }
+  if ($idx >= 0) $deals[$idx] = $deal;
+  else array_unshift($deals, $deal);
+  saveDeals($deals);
+  return $deal;
+}
+
+function deleteDeal($id) {
+  $deals = loadDeals();
+  $filtered = array_values(array_filter($deals, function ($d) use ($id) { return $d['id'] !== $id; }));
+  if (count($filtered) !== count($deals)) saveDeals($filtered);
+}
+
 // Сохранить документ на диск и добавить запись в начало истории
 function storeDocument($entry, $buffer) {
   @file_put_contents(FILES_DIR . '/' . $entry['filename'], $buffer);

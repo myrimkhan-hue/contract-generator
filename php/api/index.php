@@ -17,8 +17,8 @@ if (isset($_GET['r']) && $_GET['r'] !== '') {
   $r = $_GET['r'];
   if ($r === 'history-file') {
     $segs = ['history', isset($_GET['name']) ? $_GET['name'] : ''];
-  } elseif ($r === 'contacts' && isset($_GET['id']) && $_GET['id'] !== '') {
-    $segs = ['contacts', $_GET['id']];
+  } elseif (($r === 'contacts' || $r === 'deals') && isset($_GET['id']) && $_GET['id'] !== '') {
+    $segs = [$r, $_GET['id']];
   } else {
     $segs = [$r];
   }
@@ -37,6 +37,15 @@ function body() {
 // Достать вложенное значение массива с дефолтом
 function pick($arr, $key, $default = '') {
   return (isset($arr[$key]) && $arr[$key] !== '') ? $arr[$key] : $default;
+}
+
+// Привести реквизиты контрагента к единому набору полей
+function normalizeCounterparty($cp) {
+  $fields = ['type','name','bin','position','signerFull','signerShort',
+    'basis','address','account','bank','bik','phone','email'];
+  $out = [];
+  foreach ($fields as $f) $out[$f] = isset($cp[$f]) ? $cp[$f] : '';
+  return $out;
 }
 
 try {
@@ -95,6 +104,38 @@ try {
     $contacts = loadContacts();
     $filtered = array_values(array_filter($contacts, function($c) use ($id) { return $c['id'] !== $id; }));
     if (count($filtered) !== count($contacts)) saveJson(CONTACTS_FILE, $filtered);
+    jsonResponse(['ok' => true]);
+    exit;
+  }
+
+  // === База договоров ===
+  if ($segs === ['deals'] && $method === 'GET') {
+    jsonResponse(loadDeals());
+    exit;
+  }
+  if ($segs === ['deals'] && $method === 'POST') {
+    $b = body();
+    $companies = our_companies();
+    if (empty($b['number'])) { jsonResponse(['error' => 'Не указан номер договора.'], 400); exit; }
+    $cp = isset($b['counterparty']) && is_array($b['counterparty']) ? $b['counterparty'] : [];
+    if (empty($cp['name'])) { jsonResponse(['error' => 'Не указано название контрагента.'], 400); exit; }
+    $companyId = pick($b, 'ourCompanyId', '');
+    $deal = upsertDeal([
+      'id'           => !empty($b['id']) ? (string)$b['id'] : '',
+      'number'       => trim($b['number']),
+      'dateISO'      => pick($b, 'dateISO', ''),
+      'dateRu'       => pick($b, 'dateISO', '') !== '' ? formatDateRu(parseDateISO($b['dateISO'])) : '',
+      'ourCompanyId' => $companyId,
+      'ourCompany'   => isset($companies[$companyId]) ? $companies[$companyId]['short'] : '',
+      'ourRole'      => in_array(pick($b, 'ourRole', ''), ['executor','customer'], true) ? $b['ourRole'] : '',
+      'source'       => 'manual',
+      'counterparty' => normalizeCounterparty($cp),
+    ]);
+    jsonResponse($deal);
+    exit;
+  }
+  if (count($segs) === 2 && $segs[0] === 'deals' && $method === 'DELETE') {
+    deleteDeal(rawurldecode($segs[1]));
     jsonResponse(['ok' => true]);
     exit;
   }
@@ -171,6 +212,18 @@ try {
       'otherBin' => pick($other, 'bin', ''),
       'filename' => $filename,
     ], $buffer);
+
+    // Авто-регистрация договора в базе (с полными реквизитами контрагента)
+    upsertDeal([
+      'number'       => $contractNumber,
+      'dateISO'      => date('Y-m-d'),
+      'dateRu'       => $dateStr,
+      'ourCompanyId' => $ourCompanyId,
+      'ourCompany'   => $our['short'],
+      'ourRole'      => $ourRole,
+      'source'       => 'generated',
+      'counterparty' => normalizeCounterparty($other),
+    ]);
 
     sendDocx($buffer, $filename, 'X-Contract-Number', $contractNumber);
     exit;

@@ -141,8 +141,9 @@
   </header>
 
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('contract')">📄 Договор</button>
-    <button class="tab-btn" onclick="switchTab('zayavka')">🚚 Заявка</button>
+    <button class="tab-btn active" data-tab="contract" onclick="switchTab('contract')">📄 Договор</button>
+    <button class="tab-btn" data-tab="zayavka" onclick="switchTab('zayavka')">🚚 Заявка</button>
+    <button class="tab-btn" data-tab="deals" onclick="switchTab('deals')">🗄 База договоров</button>
   </div>
 
   <div class="layout">
@@ -616,6 +617,118 @@
         </div>
 
       </div>
+
+      <!-- ====== БАЗА ДОГОВОРОВ ====== -->
+      <div id="tab-deals" style="display:none">
+        <div class="panel">
+          <h2><span class="step-num">+</span> Добавить существующий договор</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Номер договора <span class="req">*</span></label>
+              <input type="text" id="d-number" placeholder="напр. AAA-CL-0101/2026">
+            </div>
+            <div class="field">
+              <label>Дата договора</label>
+              <input type="date" id="d-date">
+            </div>
+            <div class="field">
+              <label>Наша компания</label>
+              <select id="d-company"></select>
+            </div>
+            <div class="field">
+              <label>Наша роль</label>
+              <select id="d-role">
+                <option value="customer">Заказчик</option>
+                <option value="executor">Исполнитель</option>
+              </select>
+            </div>
+          </div>
+          <div class="section-label">Реквизиты контрагента</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Тип</label>
+              <select id="d-type">
+                <option value="ТОО">ТОО / АО</option>
+                <option value="ИП">ИП</option>
+              </select>
+            </div>
+            <div class="field"></div>
+            <div class="field full">
+              <label>Полное наименование <span class="req">*</span></label>
+              <input type="text" id="d-name" placeholder="ТОО «Название»">
+            </div>
+            <div class="field">
+              <label>БИН / ИИН</label>
+              <input type="text" id="d-bin" placeholder="12 цифр">
+            </div>
+            <div class="field">
+              <label>Должность подписанта</label>
+              <select id="d-position">
+                <option value="Директор">Директор</option>
+                <option value="Генеральный директор">Генеральный директор</option>
+                <option value="Заместитель директора">Заместитель директора</option>
+                <option value="Председатель правления">Председатель правления</option>
+                <option value="Руководитель">Руководитель</option>
+                <option value="ИП">ИП</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label>ФИО подписанта</label>
+              <input type="text" id="d-signer-full" placeholder="Фамилия Имя Отчество">
+            </div>
+            <div class="field">
+              <label>ФИО кратко</label>
+              <input type="text" id="d-signer-short" placeholder="Фамилия И. О.">
+            </div>
+            <div class="field">
+              <label>Основание</label>
+              <select id="d-basis">
+                <option value="Устава">Устава</option>
+                <option value="Доверенности">Доверенности</option>
+                <option value="Приказа">Приказа</option>
+                <option value="Свидетельства о государственной регистрации ИП">Свидетельства о гос. регистрации ИП</option>
+                <option value="Талона предпринимателя">Талона предпринимателя</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label>Юридический адрес</label>
+              <input type="text" id="d-address" placeholder="г. Город, ул. ...">
+            </div>
+            <div class="field">
+              <label>Счёт (ИИК)</label>
+              <input type="text" id="d-account" placeholder="KZ00 ...">
+            </div>
+            <div class="field">
+              <label>Банк</label>
+              <input type="text" id="d-bank" placeholder="АО «...»">
+            </div>
+            <div class="field">
+              <label>БИК</label>
+              <input type="text" id="d-bik" placeholder="XXXXKZKX">
+            </div>
+            <div class="field">
+              <label>Телефон</label>
+              <input type="text" id="d-phone" placeholder="+7 ...">
+            </div>
+            <div class="field full">
+              <label>Email</label>
+              <input type="text" id="d-email" placeholder="info@example.kz">
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" onclick="saveDeal()">💾 Добавить в базу</button>
+            <button class="btn" onclick="resetDealForm()">Очистить</button>
+          </div>
+          <div class="status" id="d-status"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Договоры в базе</h2>
+          <input type="text" id="d-search" oninput="renderDeals()" placeholder="🔎 Поиск по номеру, контрагенту или БИН"
+                 style="width:100%;margin-bottom:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:9px 11px;border-radius:6px;font-size:14px;font-family:inherit">
+          <div id="deals-list"><div class="history-empty">База пуста</div></div>
+        </div>
+      </div>
     </div>
 
     <!-- История -->
@@ -638,14 +751,16 @@ let zSelectedCompanyId = null;
 let zayavkaRole = null; // 'customer' | 'executor'
 let contacts = [];      // справочник контрагентов
 let contractDateByNumber = {}; // номер договора → его дата (для авто-подстановки в заявке)
+let deals = [];         // база договоров
+let editingDealId = null; // id редактируемого договора в базе
 
 // === Вкладки ===
 function switchTab(tab) {
-  document.getElementById('tab-contract').style.display = tab === 'contract' ? '' : 'none';
-  document.getElementById('tab-zayavka').style.display = tab === 'zayavka' ? '' : 'none';
-  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', (i === 0 && tab === 'contract') || (i === 1 && tab === 'zayavka'));
+  ['contract', 'zayavka', 'deals'].forEach(t => {
+    const el = document.getElementById('tab-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
   });
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
 }
 
 // === Компании ===
@@ -670,6 +785,10 @@ async function loadCompanies() {
       <div class="name">${c.short}</div>
     </div>
   `).join('');
+
+  // База договоров — выбор нашей компании
+  const dsel = document.getElementById('d-company');
+  if (dsel) dsel.innerHTML = companies.map(c => `<option value="${c.id}">${c.short}</option>`).join('');
 }
 
 function selectCompany(id) {
@@ -774,19 +893,24 @@ function renderContactPicker(formKey) {
   document.getElementById(f.delBtnId).disabled = !sel.value;
 }
 
+// Заполнить поля формы (договор/заявка) из объекта реквизитов по карте формы
+function fillParty(formKey, obj) {
+  const f = CONTACT_FORMS[formKey];
+  if (f.typeId && obj.type) document.getElementById(f.typeId).value = obj.type;
+  if (f.afterApply) f.afterApply();
+  for (const [field, elId] of Object.entries(f.map)) {
+    if (field === 'type') continue;
+    const el = document.getElementById(elId);
+    if (el && obj[field] !== undefined && obj[field] !== '') el.value = obj[field];
+  }
+}
+
 function applyContact(formKey, id) {
   const f = CONTACT_FORMS[formKey];
   document.getElementById(f.delBtnId).disabled = !id;
   if (!id) return;
   const c = contacts.find(x => x.id === id);
-  if (!c) return;
-  if (f.typeId && c.type) document.getElementById(f.typeId).value = c.type;
-  if (f.afterApply) f.afterApply();
-  for (const [field, elId] of Object.entries(f.map)) {
-    if (field === 'type') continue;
-    const el = document.getElementById(elId);
-    if (el && c[field] !== undefined && c[field] !== '') el.value = c[field];
-  }
+  if (c) fillParty(formKey, c);
 }
 
 async function saveContact(formKey) {
@@ -891,15 +1015,181 @@ function onContractNumberInput() {
   }
 }
 
-// «Создать заявку к договору»: открыть вкладку Заявка с заполненными номером и датой
+// «Создать заявку к договору» из истории: если договор есть в базе — подтянуть и реквизиты
 function createZayavkaFromContract(number, iso) {
+  const deal = deals.find(d => d.number === number);
+  if (deal) return createZayavkaFromDeal(deal);
   switchTab('zayavka');
   const numEl = document.getElementById('z-contract-number');
   const dateEl = document.getElementById('z-contract-date');
   numEl.value = number;
   dateEl.value = iso || contractDateByNumber[number] || todayISO();
+  flashZayavkaContract();
+}
+
+// «Создать заявку» из базы: подставить номер, дату И полные реквизиты контрагента
+function createZayavkaFromDeal(deal) {
+  switchTab('zayavka');
+  if (deal.ourCompanyId) zSelectCompany(deal.ourCompanyId);
+  if (deal.ourRole) setZRole(deal.ourRole);
+  document.getElementById('z-contract-number').value = deal.number;
+  document.getElementById('z-contract-date').value = deal.dateISO || contractDateByNumber[deal.number] || todayISO();
+  // Реквизиты контрагента идут в противоположную нашей роли сторону заявки
+  if (deal.counterparty && deal.ourRole) {
+    fillParty(deal.ourRole === 'executor' ? 'zcust' : 'zexec', deal.counterparty);
+  }
+  flashZayavkaContract();
+}
+
+function createZayavkaFromDealId(id) {
+  const deal = deals.find(d => d.id === id);
+  if (deal) createZayavkaFromDeal(deal);
+}
+
+function flashZayavkaContract() {
+  const numEl = document.getElementById('z-contract-number');
+  const dateEl = document.getElementById('z-contract-date');
   [numEl, dateEl].forEach(el => { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); });
   numEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// === База договоров ===
+// Поле формы базы → поле реквизитов контрагента
+const D_MAP = {
+  type: 'd-type', name: 'd-name', bin: 'd-bin', position: 'd-position',
+  signerFull: 'd-signer-full', signerShort: 'd-signer-short', basis: 'd-basis',
+  address: 'd-address', account: 'd-account', bank: 'd-bank', bik: 'd-bik',
+  phone: 'd-phone', email: 'd-email',
+};
+
+async function loadDeals() {
+  try {
+    const res = await fetch('api/index.php?r=deals');
+    deals = await res.json();
+  } catch (e) { deals = []; }
+  // Источник выпадающего списка номеров договоров в заявке (не ограничен 50, как история)
+  contractDateByNumber = {};
+  const nums = [];
+  deals.forEach(d => {
+    if (!(d.number in contractDateByNumber)) {
+      contractDateByNumber[d.number] = d.dateISO || '';
+      nums.push(d.number);
+    }
+  });
+  const dl = document.getElementById('contract-numbers');
+  if (dl) dl.innerHTML = nums.map(n => `<option value="${escapeHtml(n)}">`).join('');
+  renderDeals();
+}
+
+function renderDeals() {
+  const box = document.getElementById('deals-list');
+  if (!box) return;
+  const q = (document.getElementById('d-search').value || '').toLowerCase().trim();
+  const list = deals.filter(d => {
+    if (!q) return true;
+    const cp = d.counterparty || {};
+    return d.number.toLowerCase().includes(q)
+      || (cp.name || '').toLowerCase().includes(q)
+      || (cp.bin || '').includes(q);
+  });
+  if (!list.length) {
+    box.innerHTML = `<div class="history-empty">${deals.length ? 'Ничего не найдено' : 'База пуста'}</div>`;
+    return;
+  }
+  box.innerHTML = list.map(d => {
+    const cp = d.counterparty || {};
+    const roleRu = d.ourRole === 'executor' ? 'мы Исполнитель' : d.ourRole === 'customer' ? 'мы Заказчик' : '';
+    const srcTag = d.source === 'manual'
+      ? '<span class="type-tag" style="background:#eee;color:#555">вручную</span>'
+      : '<span class="type-tag contract">сгенерирован</span>';
+    const meta = [d.dateRu, d.ourCompany, roleRu].filter(Boolean).map(escapeHtml).join(' · ');
+    return `
+      <div class="history-item">
+        <div class="num">${escapeHtml(d.number)}${srcTag}</div>
+        <div class="meta">${meta}</div>
+        <div class="other">↔ ${escapeHtml(cp.name || '')}${cp.bin ? ' · БИН ' + escapeHtml(cp.bin) : ''}</div>
+        <div style="margin-top:6px;display:flex;gap:14px;flex-wrap:wrap">
+          <a href="#" onclick="createZayavkaFromDealId('${d.id}');return false;">🚚 Создать заявку</a>
+          <a href="#" onclick="editDeal('${d.id}');return false;">✎ Изменить</a>
+          <a href="#" onclick="deleteDealById('${d.id}');return false;" style="color:var(--danger)">🗑 Удалить</a>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function saveDeal() {
+  const number = val('d-number');
+  if (!number) return showStatus('d-status', 'Укажите номер договора.', 'warn');
+  if (!val('d-name')) return showStatus('d-status', 'Укажите название контрагента.', 'warn');
+  if (!checkFields([['d-bin', 'bin'], ['d-account', 'iban'], ['d-bik', 'bik'], ['d-email', 'email']], 'd-status')) return;
+  const counterparty = {};
+  for (const [f, id] of Object.entries(D_MAP)) counterparty[f] = val(id);
+  const payload = {
+    id: editingDealId || undefined,
+    number,
+    dateISO: val('d-date'),
+    ourCompanyId: val('d-company'),
+    ourRole: val('d-role'),
+    counterparty,
+  };
+  try {
+    const res = await fetch('api/index.php?r=deals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const saved = await res.json();
+    if (!res.ok) throw new Error(saved.error);
+    await loadDeals();
+    resetDealForm();
+    showStatus('d-status', `✓ Договор № ${saved.number} сохранён в базе.`, 'success');
+  } catch (e) {
+    showStatus('d-status', 'Не удалось сохранить: ' + e.message, 'error');
+  }
+}
+
+function resetDealForm() {
+  editingDealId = null;
+  ['d-number', 'd-name', 'd-bin', 'd-signer-full', 'd-signer-short',
+   'd-address', 'd-account', 'd-bank', 'd-bik', 'd-phone', 'd-email'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('d-type').value = 'ТОО';
+  document.getElementById('d-position').value = 'Директор';
+  document.getElementById('d-basis').value = 'Устава';
+  document.getElementById('d-role').value = 'customer';
+  document.getElementById('d-date').value = todayISO();
+  document.getElementById('d-status').classList.remove('show');
+}
+
+function editDeal(id) {
+  const d = deals.find(x => x.id === id);
+  if (!d) return;
+  editingDealId = id;
+  document.getElementById('d-number').value = d.number || '';
+  document.getElementById('d-date').value = d.dateISO || '';
+  if (d.ourCompanyId) document.getElementById('d-company').value = d.ourCompanyId;
+  if (d.ourRole) document.getElementById('d-role').value = d.ourRole;
+  const cp = d.counterparty || {};
+  document.getElementById('d-type').value = cp.type || 'ТОО';
+  for (const [f, elId] of Object.entries(D_MAP)) {
+    if (f === 'type') continue;
+    const el = document.getElementById(elId);
+    if (el) el.value = cp[f] || '';
+  }
+  showStatus('d-status', `Редактирование договора № ${d.number}. Сохранится под тем же номером.`, 'warn');
+  document.getElementById('d-number').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function deleteDealById(id) {
+  const d = deals.find(x => x.id === id);
+  if (!d) return;
+  if (!confirm(`Удалить договор № ${d.number} из базы?`)) return;
+  try {
+    await fetch('api/index.php?r=deals&id=' + encodeURIComponent(id), { method: 'DELETE' });
+    await loadDeals();
+  } catch (e) {
+    showStatus('d-status', 'Не удалось удалить: ' + e.message, 'error');
+  }
 }
 
 // === Способ оплаты: предоплата / постоплата ===
@@ -1272,17 +1562,7 @@ function downloadBlob(blob, filename) {
 async function loadHistory() {
   const res = await fetch('api/index.php?r=history');
   const items = await res.json();
-  // Подсказки номеров договоров + карта «номер → дата договора» для авто-подстановки
-  const dl = document.getElementById('contract-numbers');
-  contractDateByNumber = {};
-  const nums = [];
-  items.filter(i => i.type === 'contract').forEach(i => {
-    if (!(i.number in contractDateByNumber)) {   // history отсортирован от новых к старым
-      contractDateByNumber[i.number] = i.dateISO || (i.date ? i.date.slice(0, 10) : '');
-      nums.push(i.number);
-    }
-  });
-  if (dl) dl.innerHTML = nums.map(n => `<option value="${escapeHtml(n)}">`).join('');
+  // (Список номеров договоров для заявки берётся из базы договоров — loadDeals)
   const container = document.getElementById('history-list');
   if (items.length === 0) {
     container.innerHTML = '<div class="history-empty">История пуста</div>';
@@ -1315,7 +1595,9 @@ async function loadHistory() {
 loadCompanies();
 loadHistory();
 loadContacts();
+loadDeals();
 initZayavkaDates();
+resetDealForm();
 renderNoteChips();
 </script>
 </body>
