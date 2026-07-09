@@ -100,6 +100,11 @@
   .type-tag.contract { background: #e6eef6; color: #2c5282; }
   .type-tag.zayavka { background: #fef3e2; color: #92400e; }
 
+  /* Подсветка поля с ошибкой валидации */
+  .field input.invalid, .field select.invalid, .field textarea.invalid {
+    border-color: var(--danger); background: #fdf0f0;
+  }
+
   /* Чипы-варианты для примечания */
   .note-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
   .note-chip {
@@ -939,6 +944,40 @@ function showStatus(id, msg, type) {
 
 function val(id) { return document.getElementById(id).value.trim(); }
 
+// === Проверка форматов полей ===
+const VALID = {
+  bin:   { re: /^\d{12}$/,                      msg: 'БИН/ИИН должен состоять ровно из 12 цифр.' },
+  iban:  { re: /^KZ[0-9A-Za-z]{18}$/,           msg: 'Счёт (ИИК) — формат KZ + 18 символов (всего 20), напр. KZ00…' },
+  bik:   { re: /^[A-Za-z0-9]{8}([A-Za-z0-9]{3})?$/, msg: 'БИК — 8 или 11 символов (латиница/цифры), напр. KCJBKZKX.' },
+  email: { re: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,     msg: 'Некорректный email.' },
+};
+// Проверить поле. Пустое необязательное — ок. Возвращает true, если валидно.
+function checkField(id, kind, statusId) {
+  const el = document.getElementById(id);
+  if (!el) return true;
+  const v = el.value.trim();
+  if (!v) return true; // пустое (обязательность проверяется отдельно)
+  const norm = kind === 'email' ? v : v.replace(/\s/g, '');
+  const rule = VALID[kind];
+  if (rule && !rule.re.test(norm)) {
+    el.classList.add('invalid');
+    showStatus(statusId, rule.msg, 'error');
+    el.focus();
+    return false;
+  }
+  el.classList.remove('invalid');
+  return true;
+}
+// Проверить список полей по порядку; вернуть false на первой ошибке
+function checkFields(list, statusId) {
+  for (const [id, kind] of list) if (!checkField(id, kind, statusId)) return false;
+  return true;
+}
+// Снимать подсветку ошибки, как только пользователь правит поле
+document.addEventListener('input', e => {
+  if (e.target && e.target.classList) e.target.classList.remove('invalid');
+});
+
 // === Договор ===
 async function generate() {
   if (!selectedCompanyId) return showStatus('status', 'Выберите нашу компанию (шаг 1).', 'warn');
@@ -955,6 +994,14 @@ async function generate() {
   for (const [id, label] of required) {
     if (!val(id)) return showStatus('status', `Заполните: ${label}.`, 'warn');
   }
+
+  // Проверка форматов (счёт/банк/БИК/email — только если заполнены)
+  if (!checkFields([
+    ['other-bin', 'bin'],
+    ['other-account', 'iban'],
+    ['other-bik', 'bik'],
+    ['other-email', 'email'],
+  ], 'status')) return;
 
   const other = {
     type: val('other-type'),
@@ -1039,6 +1086,12 @@ async function generateZayavka() {
     if (!val('z-exec-name')) return showStatus('z-status', 'Заполните: название Исполнителя.', 'warn');
     if (!val('z-exec-signer-full')) return showStatus('z-status', 'Заполните: ФИО подписанта Исполнителя.', 'warn');
   }
+
+  // Проверка форматов реквизитов той стороны, что заполняется вручную
+  const fmt = isExec
+    ? [['z-cust-bin', 'bin'], ['z-cust-account', 'iban'], ['z-cust-bik', 'bik']]
+    : [['z-exec-bin', 'bin'], ['z-exec-account', 'iban'], ['z-exec-bik', 'bik']];
+  if (!checkFields(fmt, 'z-status')) return;
 
   const payload = {
     ourCompanyId: zSelectedCompanyId,
