@@ -121,7 +121,8 @@ try {
     $customer = $ourRole === 'customer' ? $our : $other;
     $executor = $ourRole === 'executor' ? $our : $other;
 
-    $contractNumber = generateContractNumber($our['prefix'], $ourRole);
+    // Уникальный номер (суффикс -2, -3… если в этот день уже были такие)
+    $contractNumber = uniqueDocNumber(generateContractNumber($our['prefix'], $ourRole));
     $dateStr = formatDateRu();
 
     $values = [
@@ -204,7 +205,7 @@ try {
       jsonResponse(['error' => 'Не введено название Исполнителя.'], 400); exit;
     }
 
-    $zayavkaNumber = generateZayavkaNumber($our['prefix']);
+    $zayavkaNumber = uniqueDocNumber(generateZayavkaNumber($our['prefix']));
     $dateStr = formatDateRu();
     $amountNum = (int)pick($payment, 'amount', 0);
 

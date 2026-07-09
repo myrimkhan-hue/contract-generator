@@ -9,9 +9,36 @@ if (!defined('DATA_DIR')) {
 define('FILES_DIR', DATA_DIR . '/files');
 define('HISTORY_FILE', DATA_DIR . '/history.json');
 define('CONTACTS_FILE', DATA_DIR . '/contacts.json');
+define('COUNTERS_FILE', DATA_DIR . '/counters.json');
 define('MAX_HISTORY', 50);
 
 if (!is_dir(FILES_DIR)) @mkdir(FILES_DIR, 0775, true);
+
+// Атомарный счётчик по ключу (напр. по базовому номеру документа за день).
+// Возвращает порядковый номер: 1 для первого, 2 для второго и т.д.
+function nextSequence($key) {
+  $fp = @fopen(COUNTERS_FILE, 'c+');
+  if (!$fp) return 1;
+  flock($fp, LOCK_EX);
+  $raw = stream_get_contents($fp);
+  $data = json_decode($raw, true);
+  if (!is_array($data)) $data = [];
+  $n = (isset($data[$key]) ? (int)$data[$key] : 0) + 1;
+  $data[$key] = $n;
+  ftruncate($fp, 0);
+  rewind($fp);
+  fwrite($fp, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+  fflush($fp);
+  flock($fp, LOCK_UN);
+  fclose($fp);
+  return $n;
+}
+
+// Уникальный номер документа: базовый, либо с суффиксом -N для 2-го и далее за день
+function uniqueDocNumber($base) {
+  $n = nextSequence($base);
+  return $n <= 1 ? $base : $base . '-' . $n;
+}
 
 function loadJson($file, $fallback) {
   if (!is_file($file)) return $fallback;
