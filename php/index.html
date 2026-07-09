@@ -403,7 +403,14 @@
             </div>
             <div class="field">
               <label>Должность подписанта</label>
-              <input type="text" id="z-exec-position" placeholder="Директор / Руководитель">
+              <select id="z-exec-position">
+                <option value="Директор">Директор</option>
+                <option value="Генеральный директор">Генеральный директор</option>
+                <option value="Заместитель директора">Заместитель директора</option>
+                <option value="Председатель правления">Председатель правления</option>
+                <option value="Руководитель">Руководитель</option>
+                <option value="ИП">ИП</option>
+              </select>
             </div>
             <div class="field full">
               <label>Название <span class="req">*</span></label>
@@ -419,7 +426,13 @@
             </div>
             <div class="field" id="z-exec-basis-field">
               <label>Действует на основании</label>
-              <input type="text" id="z-exec-basis" placeholder="Талона">
+              <select id="z-exec-basis">
+                <option value="Устава">Устава</option>
+                <option value="Доверенности">Доверенности</option>
+                <option value="Приказа">Приказа</option>
+                <option value="Свидетельства о государственной регистрации ИП">Свидетельства о гос. регистрации ИП</option>
+                <option value="Талона предпринимателя">Талона предпринимателя</option>
+              </select>
             </div>
             <div class="field full">
               <label>Контактное лицо и телефон</label>
@@ -487,7 +500,14 @@
             </div>
             <div class="field">
               <label>Должность подписанта</label>
-              <input type="text" id="z-cust-position" placeholder="Генеральный директор">
+              <select id="z-cust-position">
+                <option value="Директор">Директор</option>
+                <option value="Генеральный директор">Генеральный директор</option>
+                <option value="Заместитель директора">Заместитель директора</option>
+                <option value="Председатель правления">Председатель правления</option>
+                <option value="Руководитель">Руководитель</option>
+                <option value="ИП">ИП</option>
+              </select>
             </div>
             <div class="field full">
               <label>Название <span class="req">*</span></label>
@@ -503,7 +523,13 @@
             </div>
             <div class="field">
               <label>Действует на основании</label>
-              <input type="text" id="z-cust-basis" placeholder="Устава">
+              <select id="z-cust-basis">
+                <option value="Устава">Устава</option>
+                <option value="Доверенности">Доверенности</option>
+                <option value="Приказа">Приказа</option>
+                <option value="Свидетельства о государственной регистрации ИП">Свидетельства о гос. регистрации ИП</option>
+                <option value="Талона предпринимателя">Талона предпринимателя</option>
+              </select>
             </div>
             <div class="field">
               <label>Менеджер (имя)</label>
@@ -802,16 +828,13 @@ async function deleteContact(formKey) {
 
 function updateZExecType() {
   const type = document.getElementById('z-exec-type').value;
-  const basisInput = document.getElementById('z-exec-basis');
+  const basisSelect = document.getElementById('z-exec-basis');
   const talonField = document.getElementById('z-talon-field');
-  const posInput = document.getElementById('z-exec-position');
   if (type === 'ИП') {
-    basisInput.placeholder = 'Талона';
-    posInput.placeholder = 'Директор / Руководитель';
+    basisSelect.value = 'Талона предпринимателя';
     talonField.style.display = '';
   } else {
-    basisInput.placeholder = 'Устава';
-    posInput.placeholder = 'Генеральный директор';
+    basisSelect.value = 'Устава';
     talonField.style.display = 'none';
   }
 }
@@ -827,6 +850,7 @@ function setZRole(role) {
   document.getElementById('z-panel-executor').style.display     = isExec ? 'none' : '';
   document.getElementById('z-panel-exec-bank').style.display    = isExec ? 'none' : '';
   document.getElementById('z-panel-customer-party').style.display = isExec ? '' : 'none';
+  if (!isExec) updateZExecType(); // выставить основание/талон по типу Исполнителя при открытии панели
 }
 
 function todayISO() {
