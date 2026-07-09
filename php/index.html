@@ -282,11 +282,11 @@
           <div id="z-manager-block" class="form-grid" style="margin-top:14px;display:none">
             <div class="field">
               <label>Менеджер (ФИО)</label>
-              <input type="text" id="z-manager-name" placeholder="Наталья Кудиярова">
+              <input type="text" id="z-manager-name" placeholder="Фамилия Имя Отчество">
             </div>
             <div class="field">
               <label>Телефон менеджера</label>
-              <input type="text" id="z-manager-phone" placeholder="+7 701 363 19 63">
+              <input type="text" id="z-manager-phone" placeholder="+7 700 000 00 00">
             </div>
           </div>
 
@@ -294,15 +294,15 @@
           <div id="z-own-trip-block" class="form-grid" style="margin-top:14px;display:none">
             <div class="field full">
               <label>Наш контакт по рейсу (имя, телефон)</label>
-              <input type="text" id="z-own-contact" placeholder="Айдин +7 776 650 3100">
+              <input type="text" id="z-own-contact" placeholder="Имя, +7 700 000 00 00">
             </div>
             <div class="field full">
               <label>Данные а/м (номера) <span class="req">*</span></label>
-              <input type="text" id="z-own-vehicle" placeholder="767AMD05 / 54AEL05">
+              <input type="text" id="z-own-vehicle" placeholder="123ABC01 / 456DEF01">
             </div>
             <div class="field full">
               <label>Данные водителя (ФИО, ИИН, №у/л, когда и кем выдано) <span class="req">*</span></label>
-              <textarea id="z-own-driver" placeholder="Мусадинов Айдин Сабирович, ИИН 831210301590, УД № 056403979 выдано МВД HR от 02.05.2024г"></textarea>
+              <textarea id="z-own-driver" placeholder="ФИО, ИИН, № вод. удостоверения, кем и когда выдано"></textarea>
             </div>
           </div>
         </div>
@@ -313,7 +313,7 @@
           <div class="form-grid">
             <div class="field full">
               <label>Номер договора <span style="color:var(--muted);font-weight:400">(если заявка — приложение к договору)</span></label>
-              <input type="text" id="z-contract-number" list="contract-numbers" oninput="onContractNumberInput()" placeholder="напр. AVA-EX-0407/2026 — или выберите из списка">
+              <input type="text" id="z-contract-number" list="contract-numbers" oninput="onContractNumberInput()" placeholder="напр. AAA-EX-0101/2026 — или выберите из списка">
               <datalist id="contract-numbers"></datalist>
             </div>
             <div class="field full">
@@ -322,27 +322,27 @@
             </div>
             <div class="field">
               <label>Грузоотправитель <span class="req">*</span></label>
-              <input type="text" id="z-shipper" placeholder='ТОО "Q7 Export Group"'>
+              <input type="text" id="z-shipper" placeholder='ТОО «Грузоотправитель»'>
             </div>
             <div class="field">
               <label>Грузополучатель <span class="req">*</span></label>
-              <input type="text" id="z-consignee" placeholder='ТОО "RUKOS KZ"'>
+              <input type="text" id="z-consignee" placeholder='ТОО «Грузополучатель»'>
             </div>
             <div class="field">
               <label>Маршрут — откуда <span class="req">*</span></label>
-              <input type="text" id="z-route-from" placeholder="РК, г. Алматы">
+              <input type="text" id="z-route-from" placeholder="г. Город отправления">
             </div>
             <div class="field">
               <label>Маршрут — куда <span class="req">*</span></label>
-              <input type="text" id="z-route-to" placeholder="РК, г. Атырау">
+              <input type="text" id="z-route-to" placeholder="г. Город назначения">
             </div>
             <div class="field full">
               <label>Наименование груза <span class="req">*</span></label>
-              <input type="text" id="z-cargo-name" placeholder="Металлические стойки">
+              <input type="text" id="z-cargo-name" placeholder="Наименование груза">
             </div>
             <div class="field">
               <label>Количество мест</label>
-              <input type="text" id="z-qty" placeholder="13-20 шт">
+              <input type="text" id="z-qty" placeholder="напр. 10 шт">
             </div>
             <div class="field">
               <label>Габариты / вес / объём</label>
@@ -361,19 +361,19 @@
             </div>
             <div class="field full">
               <label>Адрес пункта погрузки <span class="req">*</span></label>
-              <input type="text" id="z-loading-address" placeholder="РК, Алматинская область, Талгарский район, п. Жаналык">
+              <input type="text" id="z-loading-address" placeholder="г. Город, ул. ..., склад">
             </div>
             <div class="field full">
               <label>Контакт в пункте погрузки</label>
-              <input type="text" id="z-loading-contact" placeholder="+7 708 245 9488 Наби">
+              <input type="text" id="z-loading-contact" placeholder="Имя, +7 700 000 00 00">
             </div>
             <div class="field full">
               <label>Адрес пункта разгрузки <span class="req">*</span></label>
-              <input type="text" id="z-unloading-address" placeholder="РК, г. Атырау, просп. Абулхайыр Хана 45">
+              <input type="text" id="z-unloading-address" placeholder="г. Город, ул. ...">
             </div>
             <div class="field full">
               <label>Контакт в пункте разгрузки</label>
-              <input type="text" id="z-unloading-contact" placeholder="+7 771 867 6011">
+              <input type="text" id="z-unloading-contact" placeholder="Имя, +7 700 000 00 00">
             </div>
           </div>
         </div>
@@ -402,15 +402,15 @@
             </div>
             <div class="field full">
               <label>Название <span class="req">*</span></label>
-              <input type="text" id="z-exec-name" placeholder='ИП "Иззатов"'>
+              <input type="text" id="z-exec-name" placeholder='ИП «Фамилия»'>
             </div>
             <div class="field full">
               <label>ФИО подписанта <span class="req">*</span></label>
-              <input type="text" id="z-exec-signer-full" placeholder="Иззатов Джамшид Махмудович">
+              <input type="text" id="z-exec-signer-full" placeholder="Фамилия Имя Отчество">
             </div>
             <div class="field">
               <label>ФИО кратко</label>
-              <input type="text" id="z-exec-signer-short" placeholder="Иззатов Д. М.">
+              <input type="text" id="z-exec-signer-short" placeholder="Фамилия И. О.">
             </div>
             <div class="field" id="z-exec-basis-field">
               <label>Действует на основании</label>
@@ -418,15 +418,15 @@
             </div>
             <div class="field full">
               <label>Контактное лицо и телефон</label>
-              <input type="text" id="z-exec-contact" placeholder="Айдин +7 776 650 3100">
+              <input type="text" id="z-exec-contact" placeholder="Имя, +7 700 000 00 00">
             </div>
             <div class="field full">
               <label>Данные а/м (номера)</label>
-              <input type="text" id="z-vehicle" placeholder="767AMD05 / 54AEL05">
+              <input type="text" id="z-vehicle" placeholder="123ABC01 / 456DEF01">
             </div>
             <div class="field full">
               <label>Данные водителя (ФИО, ИИН, №у/л, когда и кем выдано)</label>
-              <textarea id="z-driver" placeholder="Мусадинов Айдин Сабирович, ИИН 831210301590, УД № 056403979 выдано МВД HR от 02.05.2024г"></textarea>
+              <textarea id="z-driver" placeholder="ФИО, ИИН, № вод. удостоверения, кем и когда выдано"></textarea>
             </div>
           </div>
         </div>
@@ -437,27 +437,27 @@
           <div class="form-grid">
             <div class="field">
               <label>ИИН / БИН</label>
-              <input type="text" id="z-exec-bin" placeholder="820506302088">
+              <input type="text" id="z-exec-bin" placeholder="ИИН / БИН (12 цифр)">
             </div>
             <div class="field" id="z-talon-field">
               <label>Талон №</label>
-              <input type="text" id="z-exec-talon" placeholder="KZ95TWQ00439395">
+              <input type="text" id="z-exec-talon" placeholder="№ талона">
             </div>
             <div class="field full">
               <label>Юридический адрес</label>
-              <input type="text" id="z-exec-address" placeholder="РК, г. Тараз, ул. Тонкуруш д. 9">
+              <input type="text" id="z-exec-address" placeholder="г. Город, ул. ...">
             </div>
             <div class="field full">
               <label>Банк</label>
-              <input type="text" id="z-exec-bank" placeholder='АО "Jusan Bank"'>
+              <input type="text" id="z-exec-bank" placeholder='АО «Банк»'>
             </div>
             <div class="field">
               <label>БИК</label>
-              <input type="text" id="z-exec-bik" placeholder="TSESKZKA">
+              <input type="text" id="z-exec-bik" placeholder="XXXXKZKX">
             </div>
             <div class="field">
               <label>ИИК (расчётный счёт)</label>
-              <input type="text" id="z-exec-account" placeholder="KZ80998TTB000160808">
+              <input type="text" id="z-exec-account" placeholder="KZ00 ...">
             </div>
           </div>
         </div>
@@ -486,15 +486,15 @@
             </div>
             <div class="field full">
               <label>Название <span class="req">*</span></label>
-              <input type="text" id="z-cust-name" placeholder='ТОО "Название компании"'>
+              <input type="text" id="z-cust-name" placeholder='ТОО «Название»'>
             </div>
             <div class="field full">
               <label>ФИО подписанта <span class="req">*</span></label>
-              <input type="text" id="z-cust-signer-full" placeholder="Иванов Иван Иванович">
+              <input type="text" id="z-cust-signer-full" placeholder="Фамилия Имя Отчество">
             </div>
             <div class="field">
               <label>ФИО кратко</label>
-              <input type="text" id="z-cust-signer-short" placeholder="Иванов И. И.">
+              <input type="text" id="z-cust-signer-short" placeholder="Фамилия И. О.">
             </div>
             <div class="field">
               <label>Действует на основании</label>
@@ -502,15 +502,15 @@
             </div>
             <div class="field">
               <label>Менеджер (имя)</label>
-              <input type="text" id="z-cust-manager" placeholder="Наталья">
+              <input type="text" id="z-cust-manager" placeholder="Имя">
             </div>
             <div class="field">
               <label>Телефон менеджера</label>
-              <input type="text" id="z-cust-manager-phone" placeholder="+7 701 363 19 63">
+              <input type="text" id="z-cust-manager-phone" placeholder="+7 700 000 00 00">
             </div>
             <div class="field">
               <label>БИН / ИИН</label>
-              <input type="text" id="z-cust-bin" placeholder="123456789012">
+              <input type="text" id="z-cust-bin" placeholder="ИИН / БИН (12 цифр)">
             </div>
             <div class="field">
               <label>Телефон / Email</label>
@@ -518,7 +518,7 @@
             </div>
             <div class="field full">
               <label>Юридический адрес</label>
-              <input type="text" id="z-cust-address" placeholder="г. Алматы, ул. ...">
+              <input type="text" id="z-cust-address" placeholder="г. Город, ул. ...">
             </div>
             <div class="field full">
               <label>Банк</label>
@@ -541,7 +541,7 @@
           <div class="form-grid">
             <div class="field full">
               <label>Стоимость транспортировки (тенге, цифрами) <span class="req">*</span></label>
-              <input type="text" id="z-amount" placeholder="980 000" oninput="formatSumInput(this)">
+              <input type="text" id="z-amount" placeholder="напр. 500 000" oninput="formatSumInput(this)">
             </div>
             <div class="field">
               <label>Предоплата, %</label>
