@@ -162,6 +162,7 @@ try {
       'type' => 'contract',
       'number' => $contractNumber,
       'date' => gmdate('Y-m-d\TH:i:s\Z'),
+      'dateRu' => $dateStr,
       'ourCompany' => $our['short'],
       'ourRole' => $ourRole,
       'otherName' => pick($other, 'name'),
@@ -187,6 +188,7 @@ try {
     $executor  = isset($b['executor'])  && is_array($b['executor'])  ? $b['executor']  : [];
     $payment   = isset($b['payment'])   && is_array($b['payment'])   ? $b['payment']   : [];
     $contractNumber = pick($b, 'contractNumber', '');
+    $contractDate   = pick($b, 'contractDate', '');
 
     if (!$ourCompanyId || !isset($companies[$ourCompanyId])) {
       jsonResponse(['error' => 'Не выбрана наша компания.'], 400); exit;
@@ -268,6 +270,7 @@ try {
       'НОМЕР_ЗАЯВКИ' => $zayavkaNumber,
       'ДАТА_ЗАЯВКИ' => $dateStr,
       'НОМЕР_ДОГОВОРА' => $contractNumber !== '' ? $contractNumber : '—',
+      'ДАТА_ДОГОВОРА' => $contractDate !== '' ? $contractDate : '—',
       'ЗАКАЗЧИК_НАЗВАНИЕ' => $Z['name'],
       'ЗАКАЗЧИК_КРАТКОЕ' => $Z['name'],
       'ЗАКАЗЧИК_ДОЛЖНОСТЬ' => $Z['position'],

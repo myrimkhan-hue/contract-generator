@@ -313,8 +313,12 @@
           <div class="form-grid">
             <div class="field full">
               <label>Номер договора <span style="color:var(--muted);font-weight:400">(если заявка — приложение к договору)</span></label>
-              <input type="text" id="z-contract-number" list="contract-numbers" placeholder="напр. AVA-EX-0407/2026 — или выберите из списка">
+              <input type="text" id="z-contract-number" list="contract-numbers" oninput="onContractNumberInput()" placeholder="напр. AVA-EX-0407/2026 — или выберите из списка">
               <datalist id="contract-numbers"></datalist>
+            </div>
+            <div class="field full">
+              <label>Дата договора <span style="color:var(--muted);font-weight:400">(подставится при выборе договора из списка)</span></label>
+              <input type="text" id="z-contract-date" placeholder="напр. 4 июля 2026 г.">
             </div>
             <div class="field">
               <label>Грузоотправитель <span class="req">*</span></label>
@@ -598,6 +602,7 @@ let selectedRole = null;
 let zSelectedCompanyId = null;
 let zayavkaRole = null; // 'customer' | 'executor'
 let contacts = [];      // справочник контрагентов
+let contractDateByNumber = {}; // номер договора → его дата (для авто-подстановки в заявке)
 
 // === Вкладки ===
 function switchTab(tab) {
@@ -845,6 +850,21 @@ function initZayavkaDates() {
   document.getElementById('z-loading-date').value = todayISO();
 }
 
+// ISO-дата истории → "4 июля 2026 г." (фолбэк, если у записи нет готовой dateRu)
+function formatHistoryDateRu(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return `${d.getDate()} ${RU_MONTHS[d.getMonth()]} ${d.getFullYear()} г.`;
+}
+
+// При выборе/вводе номера договора — подставить его дату из истории
+function onContractNumberInput() {
+  const num = val('z-contract-number');
+  if (contractDateByNumber[num]) {
+    document.getElementById('z-contract-date').value = contractDateByNumber[num];
+  }
+}
+
 // === Способ оплаты: предоплата / постоплата ===
 function buildPaymentMethodText(pre) {
   const post = 100 - pre;
@@ -1030,6 +1050,7 @@ async function generateZayavka() {
     ourCompanyId: zSelectedCompanyId,
     ourRole: zayavkaRole,
     contractNumber: val('z-contract-number'),
+    contractDate: val('z-contract-date'),
     manager: { name: val('z-manager-name'), phone: val('z-manager-phone') },
     // Другая сторона как Заказчик (когда мы Исполнитель)
     customer: {
@@ -1166,12 +1187,17 @@ function downloadBlob(blob, filename) {
 async function loadHistory() {
   const res = await fetch('api/index.php?r=history');
   const items = await res.json();
-  // Подсказки номеров договоров для поля «Номер договора» в заявке
+  // Подсказки номеров договоров + карта «номер → дата договора» для авто-подстановки
   const dl = document.getElementById('contract-numbers');
-  if (dl) {
-    const nums = [...new Set(items.filter(i => i.type === 'contract').map(i => i.number))];
-    dl.innerHTML = nums.map(n => `<option value="${escapeHtml(n)}">`).join('');
-  }
+  contractDateByNumber = {};
+  const nums = [];
+  items.filter(i => i.type === 'contract').forEach(i => {
+    if (!(i.number in contractDateByNumber)) {   // history отсортирован от новых к старым
+      contractDateByNumber[i.number] = i.dateRu || formatHistoryDateRu(i.date);
+      nums.push(i.number);
+    }
+  });
+  if (dl) dl.innerHTML = nums.map(n => `<option value="${escapeHtml(n)}">`).join('');
   const container = document.getElementById('history-list');
   if (items.length === 0) {
     container.innerHTML = '<div class="history-empty">История пуста</div>';
