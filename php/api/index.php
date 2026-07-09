@@ -163,6 +163,7 @@ try {
       'number' => $contractNumber,
       'date' => gmdate('Y-m-d\TH:i:s\Z'),
       'dateRu' => $dateStr,
+      'dateISO' => date('Y-m-d'),
       'ourCompany' => $our['short'],
       'ourRole' => $ourRole,
       'otherName' => pick($other, 'name'),
@@ -269,8 +270,10 @@ try {
     $values = [
       'НОМЕР_ЗАЯВКИ' => $zayavkaNumber,
       'ДАТА_ЗАЯВКИ' => $dateStr,
+      // Ссылка на договор — только если указан его номер (иначе обе метки «—»)
       'НОМЕР_ДОГОВОРА' => $contractNumber !== '' ? $contractNumber : '—',
-      'ДАТА_ДОГОВОРА' => $contractDate !== '' ? $contractDate : '—',
+      'ДАТА_ДОГОВОРА' => ($contractNumber !== '' && $contractDate !== '')
+          ? formatDateRu(parseDateISO($contractDate)) : '—',
       'ЗАКАЗЧИК_НАЗВАНИЕ' => $Z['name'],
       'ЗАКАЗЧИК_КРАТКОЕ' => $Z['name'],
       'ЗАКАЗЧИК_ДОЛЖНОСТЬ' => $Z['position'],

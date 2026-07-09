@@ -317,8 +317,8 @@
               <datalist id="contract-numbers"></datalist>
             </div>
             <div class="field full">
-              <label>Дата договора <span style="color:var(--muted);font-weight:400">(подставится при выборе договора из списка)</span></label>
-              <input type="text" id="z-contract-date" placeholder="напр. 4 июля 2026 г.">
+              <label>Дата договора <span style="color:var(--muted);font-weight:400">(по умолчанию сегодня; подставится при выборе договора)</span></label>
+              <input type="date" id="z-contract-date">
             </div>
             <div class="field">
               <label>Грузоотправитель <span class="req">*</span></label>
@@ -328,9 +328,13 @@
               <label>Грузополучатель <span class="req">*</span></label>
               <input type="text" id="z-consignee" placeholder='ТОО "RUKOS KZ"'>
             </div>
-            <div class="field full">
-              <label>Маршрут перевозки <span class="req">*</span></label>
-              <input type="text" id="z-route" placeholder="РК, г. Алматы — РК, г. Атырау">
+            <div class="field">
+              <label>Маршрут — откуда <span class="req">*</span></label>
+              <input type="text" id="z-route-from" placeholder="РК, г. Алматы">
+            </div>
+            <div class="field">
+              <label>Маршрут — куда <span class="req">*</span></label>
+              <input type="text" id="z-route-to" placeholder="РК, г. Атырау">
             </div>
             <div class="field full">
               <label>Наименование груза <span class="req">*</span></label>
@@ -351,13 +355,9 @@
         <div class="panel">
           <h2><span class="step-num">3</span> Погрузка и разгрузка</h2>
           <div class="form-grid">
-            <div class="field">
+            <div class="field full">
               <label>Дата погрузки <span class="req">*</span></label>
               <input type="date" id="z-loading-date">
-            </div>
-            <div class="field">
-              <label>Время погрузки</label>
-              <input type="time" id="z-loading-time" value="10:00">
             </div>
             <div class="field full">
               <label>Адрес пункта погрузки <span class="req">*</span></label>
@@ -837,27 +837,20 @@ function formatSumInput(el) {
   el.value = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : '';
 }
 
-// "2025-12-04" + "10:00" → "04 декабря 2025г, 10:00"
+// "2025-12-04" → "04 декабря 2025г"
 const RU_MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-function formatLoadingDateTime(dateISO, time) {
+function formatLoadingDate(dateISO) {
   if (!dateISO) return '';
   const [y, m, d] = dateISO.split('-').map(Number);
-  const dateStr = `${String(d).padStart(2, '0')} ${RU_MONTHS[m - 1]} ${y}г`;
-  return time ? `${dateStr}, ${time}` : dateStr;
+  return `${String(d).padStart(2, '0')} ${RU_MONTHS[m - 1]} ${y}г`;
 }
 
 function initZayavkaDates() {
   document.getElementById('z-loading-date').value = todayISO();
+  document.getElementById('z-contract-date').value = todayISO();
 }
 
-// ISO-дата истории → "4 июля 2026 г." (фолбэк, если у записи нет готовой dateRu)
-function formatHistoryDateRu(iso) {
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  return `${d.getDate()} ${RU_MONTHS[d.getMonth()]} ${d.getFullYear()} г.`;
-}
-
-// При выборе/вводе номера договора — подставить его дату из истории
+// При выборе/вводе номера договора — подставить дату этого договора (ISO) в календарь
 function onContractNumberInput() {
   const num = val('z-contract-number');
   if (contractDateByNumber[num]) {
@@ -1027,7 +1020,8 @@ async function generateZayavka() {
   const commonRequired = [
     ['z-shipper', 'грузоотправитель'],
     ['z-consignee', 'грузополучатель'],
-    ['z-route', 'маршрут перевозки'],
+    ['z-route-from', 'маршрут — откуда'],
+    ['z-route-to', 'маршрут — куда'],
     ['z-cargo-name', 'наименование груза'],
     ['z-loading-date', 'дата погрузки'],
     ['z-loading-address', 'адрес погрузки'],
@@ -1072,13 +1066,13 @@ async function generateZayavka() {
     cargo: {
       shipper:    val('z-shipper'),
       consignee:  val('z-consignee'),
-      route:      val('z-route'),
+      route:      val('z-route-from') + ' — ' + val('z-route-to'),
       name:       val('z-cargo-name'),
       qty:        val('z-qty'),
       dimensions: val('z-dimensions') || 'Согласно ТТН',
     },
     loading: {
-      datetime: formatLoadingDateTime(val('z-loading-date'), val('z-loading-time')),
+      datetime: formatLoadingDate(val('z-loading-date')),
       address:  val('z-loading-address'),
       contact:  val('z-loading-contact'),
     },
@@ -1160,7 +1154,6 @@ function resetZayavkaForm() {
     else el.value = '';
   });
   initZayavkaDates();
-  document.getElementById('z-loading-time').value = '10:00';
   document.getElementById('z-prepay-pct').value = 0;
   document.getElementById('z-postpay-pct').value = 100;
   ['zcust', 'zexec'].forEach(k => {
@@ -1193,7 +1186,7 @@ async function loadHistory() {
   const nums = [];
   items.filter(i => i.type === 'contract').forEach(i => {
     if (!(i.number in contractDateByNumber)) {   // history отсортирован от новых к старым
-      contractDateByNumber[i.number] = i.dateRu || formatHistoryDateRu(i.date);
+      contractDateByNumber[i.number] = i.dateISO || (i.date ? i.date.slice(0, 10) : '');
       nums.push(i.number);
     }
   });
