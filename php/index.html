@@ -105,6 +105,10 @@
     border-color: var(--danger); background: #fdf0f0;
   }
 
+  /* Кратковременная подсветка поля при «Создать заявку к договору» */
+  @keyframes flashfield { 0% { background: var(--accent-soft); border-color: var(--accent); } 100% { background: var(--surface); } }
+  .field input.flash { animation: flashfield 1.4s ease; }
+
   /* Чипы-варианты для примечания */
   .note-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
   .note-chip {
@@ -887,6 +891,17 @@ function onContractNumberInput() {
   }
 }
 
+// «Создать заявку к договору»: открыть вкладку Заявка с заполненными номером и датой
+function createZayavkaFromContract(number, iso) {
+  switchTab('zayavka');
+  const numEl = document.getElementById('z-contract-number');
+  const dateEl = document.getElementById('z-contract-date');
+  numEl.value = number;
+  dateEl.value = iso || contractDateByNumber[number] || todayISO();
+  [numEl, dateEl].forEach(el => { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); });
+  numEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 // === Способ оплаты: предоплата / постоплата ===
 function buildPaymentMethodText(pre) {
   const post = 100 - pre;
@@ -1281,13 +1296,17 @@ async function loadHistory() {
       ? '<span class="type-tag zayavka">Заявка</span>'
       : '<span class="type-tag contract">Договор</span>';
     const sub = isZayavka && item.route ? `<div class="other" style="color:var(--muted);font-size:11px">${item.route}</div>` : '';
+    // Для договоров — кнопка «Создать заявку к этому договору»
+    const iso = item.dateISO || (item.date ? item.date.slice(0, 10) : '');
+    const zayavkaBtn = isZayavka ? '' :
+      `<a href="#" onclick="createZayavkaFromContract('${escapeHtml(item.number)}','${iso}');return false;" style="margin-left:12px">🚚 Создать заявку</a>`;
     return `
       <div class="history-item">
         <div class="num">${item.number}${typeTag}</div>
         <div class="meta">${dateStr} · ${item.ourCompany}</div>
         <div class="other">↔ ${item.otherName}</div>
         ${sub}
-        <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>
+        <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>${zayavkaBtn}
       </div>
     `;
   }).join('');
