@@ -5,6 +5,9 @@
 require __DIR__ . '/../lib/companies.php';
 require __DIR__ . '/../lib/helpers.php';
 require __DIR__ . '/../lib/storage.php';
+require __DIR__ . '/../lib/auth.php';
+
+authStartSession();
 
 $TEMPLATE       = __DIR__ . '/../templates/template.docx';
 $ZAYAVKA_TEMPLATE = __DIR__ . '/../templates/template_zayavka.docx';
@@ -49,6 +52,45 @@ function normalizeCounterparty($cp) {
 }
 
 try {
+  // === Аутентификация (публичные маршруты) ===
+  if ($segs === ['auth-status'] && $method === 'GET') {
+    jsonResponse(['configured' => authConfigured(), 'authed' => authIsLoggedIn()]);
+    exit;
+  }
+  if ($segs === ['setup'] && $method === 'POST') {
+    if (authConfigured()) { jsonResponse(['error' => 'Пароль уже установлен.'], 400); exit; }
+    $b = body();
+    $pw = isset($b['password']) ? $b['password'] : '';
+    $pw2 = isset($b['password2']) ? $b['password2'] : '';
+    if (strlen($pw) < 6) { jsonResponse(['error' => 'Пароль слишком короткий (минимум 6 символов).'], 400); exit; }
+    if ($pw !== $pw2) { jsonResponse(['error' => 'Пароли не совпадают.'], 400); exit; }
+    authSetPassword($pw);
+    authLogin();
+    jsonResponse(['ok' => true]);
+    exit;
+  }
+  if ($segs === ['login'] && $method === 'POST') {
+    $b = body();
+    if (authVerify(isset($b['password']) ? $b['password'] : '')) {
+      authLogin();
+      jsonResponse(['ok' => true]);
+      exit;
+    }
+    jsonResponse(['error' => 'Неверный пароль.'], 401);
+    exit;
+  }
+  if ($segs === ['logout'] && $method === 'POST') {
+    authLogout();
+    jsonResponse(['ok' => true]);
+    exit;
+  }
+
+  // Всё остальное — только после входа
+  if (!authIsLoggedIn()) {
+    jsonResponse(['error' => 'Требуется вход.'], 401);
+    exit;
+  }
+
   // === GET /api/companies ===
   if ($method === 'GET' && $segs === ['companies']) {
     $list = [];

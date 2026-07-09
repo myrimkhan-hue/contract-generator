@@ -109,6 +109,18 @@
   @keyframes flashfield { 0% { background: var(--accent-soft); border-color: var(--accent); } 100% { background: var(--surface); } }
   .field input.flash { animation: flashfield 1.4s ease; }
 
+  /* Экран входа */
+  #auth-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .auth-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 32px; width: 350px; max-width: 90vw; box-shadow: 0 12px 44px rgba(0,0,0,0.10); }
+  .auth-card h2 { margin: 0 0 8px; font-size: 20px; }
+  .auth-desc { color: var(--muted); font-size: 13px; margin: 0 0 18px; line-height: 1.45; }
+  .auth-card input { width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 11px; border-radius: 6px; font-size: 15px; margin-bottom: 10px; font-family: inherit; }
+  .auth-card input:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+  .auth-card .btn { width: 100%; margin-top: 6px; }
+  .auth-err { color: var(--danger); font-size: 13px; min-height: 18px; margin-bottom: 4px; }
+  header .logout { color: var(--accent); text-decoration: none; }
+  header .logout:hover { text-decoration: underline; }
+
   /* Чипы-варианты для примечания */
   .note-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
   .note-chip {
@@ -134,10 +146,22 @@
 </style>
 </head>
 <body>
+<!-- Экран входа -->
+<div id="auth-overlay">
+  <div class="auth-card">
+    <h2 id="auth-title">Вход</h2>
+    <p class="auth-desc" id="auth-desc">Введите пароль для доступа к генератору.</p>
+    <input type="password" id="auth-pw" placeholder="Пароль" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitAuth()">
+    <input type="password" id="auth-pw2" placeholder="Повторите пароль" autocomplete="new-password" style="display:none" onkeydown="if(event.key==='Enter')submitAuth()">
+    <div class="auth-err" id="auth-err"></div>
+    <button class="btn btn-primary" id="auth-btn" onclick="submitAuth()">Войти</button>
+  </div>
+</div>
+
 <div class="container">
   <header>
     <h1>Генератор документов</h1>
-    <span class="sub">Договоры и заявки на перевозку</span>
+    <span class="sub">Договоры и заявки на перевозку · <a href="#" class="logout" onclick="logout();return false;">Выйти</a></span>
   </header>
 
   <div class="tabs">
@@ -1592,13 +1616,68 @@ async function loadHistory() {
   }).join('');
 }
 
-loadCompanies();
-loadHistory();
-loadContacts();
-loadDeals();
-initZayavkaDates();
-resetDealForm();
-renderNoteChips();
+// === Вход по паролю ===
+let authMode = 'login';
+function showAuthOverlay(mode) {
+  authMode = mode;
+  document.getElementById('auth-overlay').style.display = 'flex';
+  document.getElementById('auth-title').textContent = mode === 'setup' ? 'Установка пароля' : 'Вход';
+  document.getElementById('auth-desc').textContent = mode === 'setup'
+    ? 'Задайте пароль для доступа к генератору. Он потребуется всем при входе. Запомните его — восстановить нельзя.'
+    : 'Введите пароль для доступа к генератору документов.';
+  document.getElementById('auth-pw2').style.display = mode === 'setup' ? '' : 'none';
+  document.getElementById('auth-btn').textContent = mode === 'setup' ? 'Установить и войти' : 'Войти';
+  document.getElementById('auth-err').textContent = '';
+  document.getElementById('auth-pw').value = '';
+  document.getElementById('auth-pw2').value = '';
+  document.getElementById('auth-pw').focus();
+}
+function hideAuthOverlay() { document.getElementById('auth-overlay').style.display = 'none'; }
+
+async function submitAuth() {
+  const pw = document.getElementById('auth-pw').value;
+  const pw2 = document.getElementById('auth-pw2').value;
+  const errEl = document.getElementById('auth-err');
+  errEl.textContent = '';
+  if (!pw) { errEl.textContent = 'Введите пароль.'; return; }
+  try {
+    const res = await fetch('api/index.php?r=' + (authMode === 'setup' ? 'setup' : 'login'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw, password2: pw2 }),
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) { errEl.textContent = j.error || 'Ошибка входа.'; return; }
+    initApp();
+  } catch (e) { errEl.textContent = 'Ошибка сети.'; }
+}
+
+async function logout() {
+  try { await fetch('api/index.php?r=logout', { method: 'POST' }); } catch (e) {}
+  showAuthOverlay('login');
+}
+
+async function checkAuthAndInit() {
+  let st;
+  try { st = await (await fetch('api/index.php?r=auth-status')).json(); }
+  catch (e) { st = { configured: true, authed: false }; }
+  if (!st.configured) return showAuthOverlay('setup');
+  if (!st.authed) return showAuthOverlay('login');
+  initApp();
+}
+
+// Загрузка данных приложения (только после входа)
+function initApp() {
+  hideAuthOverlay();
+  loadCompanies();
+  loadHistory();
+  loadContacts();
+  loadDeals();
+  initZayavkaDates();
+  resetDealForm();
+  renderNoteChips();
+}
+
+checkAuthAndInit();
 </script>
 </body>
 </html>
