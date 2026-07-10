@@ -2,6 +2,23 @@
 // Утилиты: экранирование, даты, номера, сумма прописью, заполнение DOCX.
 // Портировано с Node-версии (server.js) без изменения логики.
 
+// Достать значение массива с дефолтом (пустая строка → дефолт)
+function pick($arr, $key, $default = '') {
+  return (isset($arr[$key]) && $arr[$key] !== '') ? $arr[$key] : $default;
+}
+// Вложенный массив по ключу или пустой массив
+function arr($src, $key) {
+  return isset($src[$key]) && is_array($src[$key]) ? $src[$key] : [];
+}
+// Привести реквизиты контрагента к единому набору полей
+function normalizeCounterparty($cp) {
+  $fields = ['type','name','bin','position','signerFull','signerShort',
+    'basis','address','account','bank','bik','phone','email'];
+  $out = [];
+  foreach ($fields as $f) $out[$f] = isset($cp[$f]) ? $cp[$f] : '';
+  return $out;
+}
+
 function escapeXml($str) {
   if ($str === null) return '';
   $str = (string)$str;

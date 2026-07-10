@@ -53,6 +53,21 @@ function saveJson($file, $data) {
 function loadHistory()  { return loadJson(HISTORY_FILE, []); }
 function loadContacts() { return loadJson(CONTACTS_FILE, []); }
 
+// === Реестр документов (метаданные + исходные данные для пересоздания файла) ===
+define('DOCS_FILE', DATA_DIR . '/docs.json');
+define('MAX_DOCS', 2000); // крошечный JSON; файлы .docx не хранятся — пересобираются по запросу
+function loadDocs() { return loadJson(DOCS_FILE, []); }
+function addDoc($entry) {
+  $docs = loadDocs();
+  array_unshift($docs, $entry);
+  if (count($docs) > MAX_DOCS) $docs = array_slice($docs, 0, MAX_DOCS);
+  saveJson(DOCS_FILE, $docs);
+}
+function findDocByFilename($filename) {
+  foreach (loadDocs() as $d) if (($d['filename'] ?? '') === $filename) return $d;
+  return null;
+}
+
 // === База договоров ===
 define('DEALS_FILE', DATA_DIR . '/deals.json');
 function loadDeals() { return loadJson(DEALS_FILE, []); }

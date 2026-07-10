@@ -5,6 +5,7 @@
 require __DIR__ . '/../lib/companies.php';
 require __DIR__ . '/../lib/helpers.php';
 require __DIR__ . '/../lib/storage.php';
+require __DIR__ . '/../lib/docgen.php';
 require __DIR__ . '/../lib/auth.php';
 
 authStartSession();
@@ -37,19 +38,7 @@ function body() {
   $data = json_decode($raw, true);
   return is_array($data) ? $data : [];
 }
-// Достать вложенное значение массива с дефолтом
-function pick($arr, $key, $default = '') {
-  return (isset($arr[$key]) && $arr[$key] !== '') ? $arr[$key] : $default;
-}
-
-// Привести реквизиты контрагента к единому набору полей
-function normalizeCounterparty($cp) {
-  $fields = ['type','name','bin','position','signerFull','signerShort',
-    'basis','address','account','bank','bik','phone','email'];
-  $out = [];
-  foreach ($fields as $f) $out[$f] = isset($cp[$f]) ? $cp[$f] : '';
-  return $out;
-}
+// pick(), arr(), normalizeCounterparty() определены в helpers.php
 
 try {
   // === Аутентификация (публичные маршруты) ===
@@ -101,18 +90,27 @@ try {
     exit;
   }
 
-  // === GET /api/history ===
+  // === GET /api/history (последние документы, без тяжёлого поля input) ===
   if ($method === 'GET' && $segs === ['history']) {
-    jsonResponse(loadHistory());
+    $recent = array_slice(loadDocs(), 0, 50);
+    $out = array_map(function ($d) { unset($d['input']); return $d; }, $recent);
+    jsonResponse($out);
     exit;
   }
 
-  // === GET /api/history/{filename} ===
+  // === GET /api/history/{filename} — пересобрать документ и отдать ===
   if ($method === 'GET' && count($segs) === 2 && $segs[0] === 'history') {
     $safe = basename(rawurldecode($segs[1]));
+    // Легаси-кэш файлов (если остался)
     $file = FILES_DIR . '/' . $safe;
-    if (!is_file($file)) { jsonResponse(['error' => 'Файл не найден'], 404); exit; }
-    sendDocx(file_get_contents($file), $safe);
+    if (is_file($file)) { sendDocx(file_get_contents($file), $safe); exit; }
+    // Иначе пересобираем из сохранённых данных
+    $doc = findDocByFilename($safe);
+    if (!$doc || empty($doc['input'])) { jsonResponse(['error' => 'Документ не найден'], 404); exit; }
+    $res = ($doc['type'] ?? '') === 'zayavka'
+      ? buildZayavkaDoc($doc['input'], $doc['number'], $doc['dateRu'])
+      : buildContractDoc($doc['input'], $doc['number'], $doc['dateRu']);
+    sendDocx($res['buffer'], $safe);
     exit;
   }
 
@@ -215,10 +213,10 @@ try {
   // === Резервная копия / восстановление ===
   if ($segs === ['backup'] && $method === 'GET') {
     $data = [
-      'version'  => 1,
+      'version'  => 2,
       'deals'    => loadDeals(),
       'contacts' => loadContacts(),
-      'history'  => loadHistory(),
+      'docs'     => loadDocs(),
       'counters' => loadJson(COUNTERS_FILE, []),
     ];
     header('Content-Type: application/json; charset=utf-8');
@@ -228,12 +226,13 @@ try {
   }
   if ($segs === ['restore'] && $method === 'POST') {
     $b = body();
-    if (!isset($b['deals']) && !isset($b['contacts']) && !isset($b['history'])) {
+    if (!isset($b['deals']) && !isset($b['contacts']) && !isset($b['docs']) && !isset($b['history'])) {
       jsonResponse(['error' => 'Файл не похож на резервную копию.'], 400); exit;
     }
     if (isset($b['deals'])    && is_array($b['deals']))    saveDeals($b['deals']);
     if (isset($b['contacts']) && is_array($b['contacts'])) saveJson(CONTACTS_FILE, $b['contacts']);
-    if (isset($b['history'])  && is_array($b['history']))  saveJson(HISTORY_FILE, $b['history']);
+    if (isset($b['docs'])     && is_array($b['docs']))     saveJson(DOCS_FILE, $b['docs']);
+    if (isset($b['history'])  && is_array($b['history']))  saveJson(HISTORY_FILE, $b['history']); // старые копии
     if (isset($b['counters']) && is_array($b['counters'])) saveJson(COUNTERS_FILE, $b['counters']);
     jsonResponse(['ok' => true]);
     exit;
@@ -258,59 +257,26 @@ try {
     }
 
     $our = $companies[$ourCompanyId];
-    $customer = $ourRole === 'customer' ? $our : $other;
-    $executor = $ourRole === 'executor' ? $our : $other;
-
-    // Уникальный номер (суффикс -2, -3… если в этот день уже были такие)
+    // Уникальный номер (суффикс /2, /3… если в этот день уже были такие)
     $contractNumber = uniqueDocNumber(generateContractNumber($our['prefix'], $ourRole));
     $dateStr = formatDateRu();
+    $input = ['ourCompanyId' => $ourCompanyId, 'ourRole' => $ourRole, 'other' => $other];
+    $res = buildContractDoc($input, $contractNumber, $dateStr);
 
-    $values = [
-      'НОМЕР_ДОГОВОРА' => $contractNumber,
-      'ДАТА_ДОГОВОРА'  => $dateStr,
-      'ЗАКАЗЧИК_НАЗВАНИЕ'          => pick($customer, 'name'),
-      'ЗАКАЗЧИК_БИН'               => pick($customer, 'bin'),
-      'ЗАКАЗЧИК_АДРЕС'             => pick($customer, 'address'),
-      'ЗАКАЗЧИК_СЧЕТ'              => pick($customer, 'account'),
-      'ЗАКАЗЧИК_БАНК'              => pick($customer, 'bank'),
-      'ЗАКАЗЧИК_БИК'               => pick($customer, 'bik'),
-      'ЗАКАЗЧИК_ДОЛЖНОСТЬ'         => pick($customer, 'position'),
-      'ЗАКАЗЧИК_ПОДПИСАНТ'         => pick($customer, 'signerFull'),
-      'ЗАКАЗЧИК_ПОДПИСАНТ_КРАТКО'  => pick($customer, 'signerShort'),
-      'ЗАКАЗЧИК_ОСНОВАНИЕ'         => pick($customer, 'basis'),
-      'ЗАКАЗЧИК_ТЕЛЕФОН'          => pick($customer, 'phone'),
-      'ЗАКАЗЧИК_EMAIL'            => pick($customer, 'email'),
-      'ИСПОЛНИТЕЛЬ_НАЗВАНИЕ'         => pick($executor, 'name'),
-      'ИСПОЛНИТЕЛЬ_БИН'              => pick($executor, 'bin'),
-      'ИСПОЛНИТЕЛЬ_АДРЕС'            => pick($executor, 'address'),
-      'ИСПОЛНИТЕЛЬ_СЧЕТ'             => pick($executor, 'account'),
-      'ИСПОЛНИТЕЛЬ_БАНК'             => pick($executor, 'bank'),
-      'ИСПОЛНИТЕЛЬ_БИК'              => pick($executor, 'bik'),
-      'ИСПОЛНИТЕЛЬ_ДОЛЖНОСТЬ'        => pick($executor, 'position'),
-      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ'        => pick($executor, 'signerFull'),
-      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ_КРАТКО' => pick($executor, 'signerShort'),
-      'ИСПОЛНИТЕЛЬ_ОСНОВАНИЕ'        => pick($executor, 'basis'),
-      'ИСПОЛНИТЕЛЬ_ТЕЛЕФОН'         => pick($executor, 'phone'),
-      'ИСПОЛНИТЕЛЬ_EMAIL'          => pick($executor, 'email'),
-    ];
-
-    $buffer = fillDocx($TEMPLATE, $values);
-    $safeOther = safeName(pick($other, 'name', 'other'));
-    $safeNumber = str_replace('/', '-', $contractNumber);
-    $filename = "Договор_{$safeNumber}_{$safeOther}.docx";
-
-    storeDocument([
+    // Сохраняем исходные данные (файл пересоберём при повторном скачивании)
+    addDoc([
       'type' => 'contract',
       'number' => $contractNumber,
       'date' => gmdate('Y-m-d\TH:i:s\Z'),
-      'dateRu' => $dateStr,
       'dateISO' => date('Y-m-d'),
+      'dateRu' => $dateStr,
       'ourCompany' => $our['short'],
       'ourRole' => $ourRole,
-      'otherName' => pick($other, 'name'),
-      'otherBin' => pick($other, 'bin', ''),
-      'filename' => $filename,
-    ], $buffer);
+      'otherName' => $res['otherName'],
+      'otherBin' => $res['otherBin'],
+      'filename' => $res['filename'],
+      'input' => $input,
+    ]);
 
     // Авто-регистрация договора в базе (с полными реквизитами контрагента)
     upsertDeal([
@@ -324,7 +290,7 @@ try {
       'counterparty' => normalizeCounterparty($other),
     ]);
 
-    sendDocx($buffer, $filename, 'X-Contract-Number', $contractNumber);
+    sendDocx($res['buffer'], $res['filename'], 'X-Contract-Number', $contractNumber);
     exit;
   }
 
@@ -359,138 +325,22 @@ try {
 
     $zayavkaNumber = uniqueDocNumber(generateZayavkaNumber($our['prefix']));
     $dateStr = formatDateRu();
-    $amountNum = (int)pick($payment, 'amount', 0);
+    $res = buildZayavkaDoc($b, $zayavkaNumber, $dateStr);
 
-    if ($isExecutor) {
-      // Мы — Исполнитель, другая сторона — Заказчик
-      $Z = [
-        'name' => pick($customer, 'name', '—'),
-        'type' => pick($customer, 'type', 'ТОО'),
-        'position' => pick($customer, 'position', 'Директор'),
-        'signerFull' => pick($customer, 'signerFull', '—'),
-        'signerShort' => pick($customer, 'signerShort', pick($customer, 'signerFull', '—')),
-        'basis' => pick($customer, 'basis', '—'),
-        'address' => pick($customer, 'address', '—'),
-        'bin' => pick($customer, 'bin', '—'),
-        'bank' => pick($customer, 'bank', '—'),
-        'bik' => pick($customer, 'bik', '—'),
-        'account' => pick($customer, 'account', '—'),
-        'phone' => pick($customer, 'phone', '—'),
-        'email' => pick($customer, 'email', '—'),
-        'manager' => pick($customer, 'manager', '—'),
-        'managerPhone' => pick($customer, 'managerPhone', '—'),
-      ];
-      $I = [
-        'name' => $our['name'], 'type' => $our['type'], 'position' => $our['position'],
-        'signerFull' => $our['signerFull'], 'signerShort' => $our['signerShort'], 'basis' => $our['basis'],
-        'address' => $our['address'], 'bin' => $our['bin'], 'bank' => $our['bank'],
-        'bik' => $our['bik'], 'account' => $our['account'],
-        'talon' => !empty($our['talon']) ? $our['talon'] : '—',
-        'contact' => pick($executor, 'contact', $our['phone']),
-        'vehicle' => pick($executor, 'vehicle', '—'),
-        'driver' => pick($executor, 'driver', '—'),
-      ];
-    } else {
-      // Мы — Заказчик, другая сторона — Исполнитель
-      $Z = [
-        'name' => $our['name'], 'type' => $our['type'], 'position' => $our['position'],
-        'signerFull' => $our['signerFull'], 'signerShort' => $our['signerShort'], 'basis' => $our['basis'],
-        'address' => $our['address'], 'bin' => $our['bin'], 'bank' => $our['bank'],
-        'bik' => $our['bik'], 'account' => $our['account'],
-        'phone' => $our['phone'], 'email' => $our['email'],
-        'manager' => pick($manager, 'name', '—'),
-        'managerPhone' => pick($manager, 'phone', '—'),
-      ];
-      $I = [
-        'name' => pick($executor, 'name', '—'),
-        'type' => pick($executor, 'type', 'ИП'),
-        'position' => pick($executor, 'position', 'Директор'),
-        'signerFull' => pick($executor, 'signerFull', '—'),
-        'signerShort' => pick($executor, 'signerShort', pick($executor, 'signerFull', '—')),
-        'basis' => pick($executor, 'basis', '—'),
-        'address' => pick($executor, 'address', '—'),
-        'bin' => pick($executor, 'bin', '—'),
-        'bank' => pick($executor, 'bank', '—'),
-        'bik' => pick($executor, 'bik', '—'),
-        'account' => pick($executor, 'account', '—'),
-        'talon' => pick($executor, 'talon', '—'),
-        'contact' => pick($executor, 'contact', '—'),
-        'vehicle' => pick($executor, 'vehicle', '—'),
-        'driver' => pick($executor, 'driver', '—'),
-      ];
-    }
-
-    $values = [
-      'НОМЕР_ЗАЯВКИ' => $zayavkaNumber,
-      'ДАТА_ЗАЯВКИ' => $dateStr,
-      // Ссылка на договор — только если указан его номер (иначе обе метки «—»)
-      'НОМЕР_ДОГОВОРА' => $contractNumber !== '' ? $contractNumber : '—',
-      'ДАТА_ДОГОВОРА' => ($contractNumber !== '' && $contractDate !== '')
-          ? formatDateRu(parseDateISO($contractDate)) : '—',
-      'ЗАКАЗЧИК_НАЗВАНИЕ' => $Z['name'],
-      'ЗАКАЗЧИК_КРАТКОЕ' => $Z['name'],
-      'ЗАКАЗЧИК_ДОЛЖНОСТЬ' => $Z['position'],
-      'ЗАКАЗЧИК_ПОДПИСАНТ' => $Z['signerFull'],
-      'ЗАК_КР' => $Z['signerShort'],
-      'ЗАКАЗЧИК_ОСНОВАНИЕ' => $Z['basis'],
-      'ЗАКАЗЧИК_АДРЕС' => $Z['address'],
-      'ЗАКАЗЧИК_БИН' => $Z['bin'],
-      'ЗАКАЗЧИК_БАНК' => $Z['bank'],
-      'ЗАКАЗЧИК_БИК' => $Z['bik'],
-      'ЗАКАЗЧИК_СЧЕТ' => $Z['account'],
-      'ЗАКАЗЧИК_ТЕЛЕФОН' => !empty($Z['phone']) ? $Z['phone'] : '—',
-      'ЗАКАЗЧИК_EMAIL' => !empty($Z['email']) ? $Z['email'] : '—',
-      'ЗАКАЗЧИК_МЕНЕДЖЕР' => $Z['manager'],
-      'ЗАКАЗЧИК_МЕНЕДЖЕР_ТЕЛ' => $Z['managerPhone'],
-      'ГРУЗООТПРАВИТЕЛЬ' => pick($cargo, 'shipper', '—'),
-      'ГРУЗОПОЛУЧАТЕЛЬ' => pick($cargo, 'consignee', '—'),
-      'МАРШРУТ' => pick($cargo, 'route', '—'),
-      'НАИМЕНОВАНИЕ_ГРУЗА' => pick($cargo, 'name', '—'),
-      'КОЛ_МЕСТ' => pick($cargo, 'qty', '—'),
-      'ГАБАРИТЫ' => pick($cargo, 'dimensions', 'Согласно ТТН'),
-      'ДАТА_ПОГРУЗКИ' => pick($loading, 'datetime', '—'),
-      'АДРЕС_ПОГРУЗКИ' => pick($loading, 'address', '—'),
-      'КОНТАКТ_ПОГРУЗКИ' => pick($loading, 'contact', '—'),
-      'АДРЕС_РАЗГРУЗКИ' => pick($unloading, 'address', '—'),
-      'КОНТАКТ_РАЗГРУЗКИ' => pick($unloading, 'contact', '—'),
-      'ИСПОЛНИТЕЛЬ_НАЗВАНИЕ' => $I['name'],
-      'ИСПОЛНИТЕЛЬ_ТИП' => $I['type'],
-      'ИСПОЛНИТЕЛЬ_ДОЛЖНОСТЬ' => $I['position'],
-      'ИСПОЛНИТЕЛЬ_ПОДПИСАНТ' => $I['signerFull'],
-      'ИСП_КР' => $I['signerShort'],
-      'ИСПОЛНИТЕЛЬ_ОСНОВАНИЕ' => $I['basis'],
-      'ИСПОЛНИТЕЛЬ_АДРЕС' => $I['address'],
-      'ИСПОЛНИТЕЛЬ_ИИН' => $I['bin'],
-      'ИСПОЛНИТЕЛЬ_БАНК' => $I['bank'],
-      'ИСПОЛНИТЕЛЬ_БИК' => $I['bik'],
-      'ИСПОЛНИТЕЛЬ_СЧЕТ' => $I['account'],
-      'ИСПОЛНИТЕЛЬ_ТАЛОН' => $I['talon'],
-      'ИСПОЛНИТЕЛЬ_КОНТАКТ' => $I['contact'],
-      'ДАННЫЕ_АМ' => $I['vehicle'],
-      'ДАННЫЕ_ВОДИТЕЛЯ' => $I['driver'],
-      'СТОИМОСТЬ_ЦИФРАМИ' => $amountNum ? formatAmount($amountNum) : '—',
-      'СТОИМОСТЬ_ПРОПИСЬЮ' => $amountNum ? amountToWords($amountNum) : '—',
-      'СПОСОБ_ОПЛАТЫ' => pick($payment, 'method', '—'),
-      'УСЛОВИЯ_ОПЛАТЫ' => pick($payment, 'conditions', '—'),
-      'ДОКУМЕНТЫ' => pick($payment, 'documents', 'ТТН'),
-      'ПРИМЕЧАНИЕ' => pick($payment, 'notes', '—'),
-    ];
-
-    $buffer = fillDocx($ZAYAVKA_TEMPLATE, $values);
-    $safeExec = safeName(pick($executor, 'name', 'исполнитель'), 'исполнитель');
-    $safeNumber = str_replace('/', '-', $zayavkaNumber);
-    $filename = "Заявка_{$safeNumber}_{$safeExec}.docx";
-
-    storeDocument([
+    // Сохраняем полные исходные данные (файл пересоберём при повторном скачивании)
+    addDoc([
       'type' => 'zayavka',
       'number' => $zayavkaNumber,
       'date' => gmdate('Y-m-d\TH:i:s\Z'),
+      'dateISO' => date('Y-m-d'),
+      'dateRu' => $dateStr,
       'ourCompany' => $our['short'],
       'ourRole' => $isExecutor ? 'executor' : 'customer',
-      'otherName' => $isExecutor ? $Z['name'] : $I['name'],
-      'route' => pick($cargo, 'route', ''),
-      'filename' => $filename,
-    ], $buffer);
+      'otherName' => $res['otherName'],
+      'route' => $res['route'],
+      'filename' => $res['filename'],
+      'input' => $b,
+    ]);
 
     // Привязать заявку к договору в базе (если указан номер договора и он там есть)
     if ($contractNumber !== '') {
@@ -504,8 +354,8 @@ try {
           array_unshift($deals[$i]['zayavki'], [
             'number'   => $zayavkaNumber,
             'dateRu'   => $dateStr,
-            'route'    => pick($cargo, 'route', ''),
-            'filename' => $filename,
+            'route'    => $res['route'],
+            'filename' => $res['filename'],
           ]);
           saveDeals($deals);
         }
@@ -513,7 +363,7 @@ try {
       }
     }
 
-    sendDocx($buffer, $filename, 'X-Zayavka-Number', $zayavkaNumber);
+    sendDocx($res['buffer'], $res['filename'], 'X-Zayavka-Number', $zayavkaNumber);
     exit;
   }
 
