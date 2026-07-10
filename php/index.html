@@ -791,6 +791,7 @@ let zayavkaRole = null; // 'customer' | 'executor'
 let contacts = [];      // справочник контрагентов
 let contractDateByNumber = {}; // номер договора → его дата (для авто-подстановки в заявке)
 let deals = [];         // база договоров
+let historyItems = [];  // последние документы (для списка номеров договоров в заявке)
 let editingDealId = null; // id редактируемого договора в базе
 
 // === Вкладки ===
@@ -1106,18 +1107,31 @@ async function loadDeals() {
     const res = await fetch('api/index.php?r=deals');
     deals = await res.json();
   } catch (e) { deals = []; }
-  // Источник выпадающего списка номеров договоров в заявке (не ограничен 50, как история)
+  refreshContractDatalist();
+  renderDeals();
+}
+
+// Наполнить выпадающий список номеров договоров в Заявке.
+// Источники: база договоров + история (договоры), чтобы список был даже если
+// договора нет в базе (старые/сброшенные записи). База имеет приоритет по дате.
+function refreshContractDatalist() {
   contractDateByNumber = {};
   const nums = [];
-  deals.forEach(d => {
-    if (!(d.number in contractDateByNumber)) {
-      contractDateByNumber[d.number] = d.dateISO || '';
-      nums.push(d.number);
+  const add = (number, iso) => {
+    if (!number) return;
+    if (!(number in contractDateByNumber)) nums.push(number);
+    // не затираем уже известную (из базы) дату пустой
+    if (!(number in contractDateByNumber) || (iso && !contractDateByNumber[number])) {
+      contractDateByNumber[number] = iso || contractDateByNumber[number] || '';
     }
+  };
+  // Сначала база (канонические даты), затем история как запасной источник
+  deals.forEach(d => add(d.number, d.dateISO || ''));
+  historyItems.forEach(it => {
+    if (it.type !== 'zayavka') add(it.number, it.dateISO || (it.date ? it.date.slice(0, 10) : ''));
   });
   const dl = document.getElementById('contract-numbers');
   if (dl) dl.innerHTML = nums.map(n => `<option value="${escapeHtml(n)}">`).join('');
-  renderDeals();
 }
 
 function renderDeals() {
@@ -1643,7 +1657,9 @@ function downloadBlob(blob, filename) {
 async function loadHistory() {
   const res = await fetch('api/index.php?r=history');
   const items = await res.json();
-  // (Список номеров договоров для заявки берётся из базы договоров — loadDeals)
+  historyItems = Array.isArray(items) ? items : [];
+  // Номера договоров в заявке берутся из базы + истории
+  refreshContractDatalist();
   const container = document.getElementById('history-list');
   if (items.length === 0) {
     container.innerHTML = '<div class="history-empty">История пуста</div>';
