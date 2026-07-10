@@ -67,6 +67,18 @@ function findDocByFilename($filename) {
   foreach (loadDocs() as $d) if (($d['filename'] ?? '') === $filename) return $d;
   return null;
 }
+// Обновить поля записи документа (напр. отметку «в реестре»)
+function updateDocByFilename($filename, $patch) {
+  $docs = loadDocs();
+  foreach ($docs as $i => $d) {
+    if (($d['filename'] ?? '') === $filename) {
+      $docs[$i] = array_merge($d, $patch);
+      saveJson(DOCS_FILE, $docs);
+      return $docs[$i];
+    }
+  }
+  return null;
+}
 
 // === База договоров ===
 define('DEALS_FILE', DATA_DIR . '/deals.json');

@@ -99,6 +99,7 @@
   .type-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 6px; }
   .type-tag.contract { background: #e6eef6; color: #2c5282; }
   .type-tag.zayavka { background: #fef3e2; color: #92400e; }
+  .type-tag.registry { background: #e6f4ea; color: #1e7e34; }
 
   /* Подсветка поля с ошибкой валидации */
   .field input.invalid, .field select.invalid, .field textarea.invalid {
@@ -798,6 +799,7 @@ let deals = [];         // база договоров
 let historyItems = [];  // последние документы (для списка номеров договоров в заявке)
 let editingDealId = null; // id редактируемого договора в базе
 let lastZayavkaPayload = null; // данные последней заявки (для кнопки «Добавить в реестр»)
+let lastZayavkaFilename = ''; // имя файла последней заявки (для отметки «в реестре»)
 
 // === Реестр перевозок (Google Форма «Заявка 2024») ===
 // Заполненная форма открывается в браузере пользователя (он вошёл в Google,
@@ -859,6 +861,37 @@ function buildRegistryUrl(p) {
 function openRegistry() {
   if (!lastZayavkaPayload) return;
   window.open(buildRegistryUrl(lastZayavkaPayload), '_blank', 'noopener');
+  if (lastZayavkaFilename) markRegistry(lastZayavkaFilename, true);
+}
+
+// Поставить/снять отметку «отправлено в реестр» у заявки
+async function markRegistry(filename, state) {
+  try {
+    await fetch('api/index.php?r=registry-mark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, state })
+    });
+  } catch (e) {}
+  loadHistory();
+}
+
+function unmarkRegistry(filename) {
+  if (!confirm('Снять отметку «в реестре» с этой заявки?')) return;
+  markRegistry(filename, false);
+}
+
+// «В реестр» из истории: данные заявки хранятся на сервере — подтянуть и открыть форму
+async function openRegistryFromHistory(filename) {
+  try {
+    const res = await fetch('api/index.php?r=doc-input&name=' + encodeURIComponent(filename));
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'ошибка'); }
+    const data = await res.json();
+    window.open(buildRegistryUrl(data.input || {}), '_blank', 'noopener');
+    markRegistry(filename, true);
+  } catch (e) {
+    alert('Не удалось открыть форму: ' + e.message);
+  }
 }
 
 // === Вкладки ===
@@ -1655,6 +1688,9 @@ async function generateZayavka() {
     },
   };
 
+  // ISO-дата погрузки — для предзаполнения Google Формы (в т.ч. позже, из истории)
+  payload._loadingISO = val('z-loading-date');
+
   const btn = document.getElementById('z-gen-btn');
   btn.disabled = true; btn.textContent = '⏳ Генерация...';
 
@@ -1674,8 +1710,8 @@ async function generateZayavka() {
     downloadBlob(blob, filename);
     showStatus('z-status', `✓ Заявка ${num} сгенерирована и скачана.`, 'success');
     // Данные для кнопки «Добавить в реестр перевозок» (Google Форма)
-    payload._loadingISO = val('z-loading-date');
     lastZayavkaPayload = payload;
+    lastZayavkaFilename = filename;
     document.getElementById('z-registry-btn').style.display = '';
     document.getElementById('z-registry-hint').style.display = '';
     loadHistory();
@@ -1747,14 +1783,19 @@ async function loadHistory() {
     const typeTag = isZayavka
       ? '<span class="type-tag zayavka">Заявка</span>'
       : '<span class="type-tag contract">Договор</span>';
+    // Отметка «в реестре» (клик — снять) либо ссылка отправки в реестр
+    const registryTag = isZayavka && item.registry
+      ? `<span class="type-tag registry" title="Нажмите, чтобы снять отметку" style="cursor:pointer" onclick="unmarkRegistry('${escapeHtml(item.filename)}')">✓ в реестре</span>`
+      : '';
     const sub = isZayavka && item.route ? `<div class="other" style="color:var(--muted);font-size:11px">${item.route}</div>` : '';
     // Для договоров — кнопка «Создать заявку к этому договору»
     const iso = item.dateISO || (item.date ? item.date.slice(0, 10) : '');
-    const zayavkaBtn = isZayavka ? '' :
-      `<a href="#" onclick="createZayavkaFromContract('${escapeHtml(item.number)}','${iso}');return false;" style="margin-left:12px">🚚 Создать заявку</a>`;
+    const zayavkaBtn = isZayavka
+      ? (item.registry ? '' : `<a href="#" onclick="openRegistryFromHistory('${escapeHtml(item.filename)}');return false;" style="margin-left:12px">📋 В реестр</a>`)
+      : `<a href="#" onclick="createZayavkaFromContract('${escapeHtml(item.number)}','${iso}');return false;" style="margin-left:12px">🚚 Создать заявку</a>`;
     return `
       <div class="history-item">
-        <div class="num">${item.number}${typeTag}</div>
+        <div class="num">${item.number}${typeTag}${registryTag}</div>
         <div class="meta">${dateStr} · ${item.ourCompany}</div>
         <div class="other">↔ ${item.otherName}</div>
         ${sub}

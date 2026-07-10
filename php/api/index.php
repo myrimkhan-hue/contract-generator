@@ -114,6 +114,32 @@ try {
     exit;
   }
 
+  // === Отметка «отправлено в реестр перевозок» ===
+  if ($segs === ['registry-mark'] && $method === 'POST') {
+    $b = body();
+    $filename = basename(pick($b, 'filename', ''));
+    if ($filename === '') { jsonResponse(['error' => 'Не указан файл.'], 400); exit; }
+    $state = !empty($b['state']);
+    $doc = updateDocByFilename($filename, [
+      'registry'   => $state,
+      'registryAt' => $state ? gmdate('Y-m-d\TH:i:s\Z') : null,
+    ]);
+    if (!$doc) { jsonResponse(['error' => 'Документ не найден'], 404); exit; }
+    jsonResponse(['ok' => true, 'registry' => $state]);
+    exit;
+  }
+
+  // === Исходные данные заявки (для предзаполнения Google Формы из истории) ===
+  if ($segs === ['doc-input'] && $method === 'GET') {
+    $filename = basename(rawurldecode(isset($_GET['name']) ? $_GET['name'] : ''));
+    $doc = findDocByFilename($filename);
+    if (!$doc || ($doc['type'] ?? '') !== 'zayavka' || empty($doc['input'])) {
+      jsonResponse(['error' => 'Данные заявки не найдены'], 404); exit;
+    }
+    jsonResponse(['input' => $doc['input']]);
+    exit;
+  }
+
   // === Справочник контрагентов ===
   $CONTACT_FIELDS = ['type','name','bin','position','signerFull','signerShort',
     'basis','address','account','bank','bik','phone','email'];
