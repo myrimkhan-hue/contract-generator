@@ -900,10 +900,12 @@ function buildRegistryUrl(p) {
   put(REGISTRY_ENTRY.driverPh,  exec.contact);
   put(REGISTRY_ENTRY.vehicle,   exec.vehicle);
   put(REGISTRY_ENTRY.manager,   mgr.name);
-  // Дата погрузки — отдельные параметры _year/_month/_day
+  // Дата погрузки. Для предзаполнения страница ждёт entry.N=ГГГГ-ММ-ДД;
+  // компоненты _year/_month/_day добавляем тоже (формат отправки) — лишнее форма игнорирует.
   const iso = p._loadingISO || ''; // YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
     const [y, m, d] = iso.split('-');
+    params.push('entry.' + REGISTRY_ENTRY.date + '=' + iso);
     params.push('entry.' + REGISTRY_ENTRY.date + '_year=' + y);
     params.push('entry.' + REGISTRY_ENTRY.date + '_month=' + Number(m));
     params.push('entry.' + REGISTRY_ENTRY.date + '_day=' + Number(d));
