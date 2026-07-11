@@ -865,6 +865,9 @@ const REGISTRY_ENTRY = {
   // Загрузить документы(777235522), Добавить скриншот(307576288) — файлы, только вручную.
 };
 
+// Готовые варианты поля «Груз» в форме — всё остальное уходит в «Другое»
+const REGISTRY_CARGO_OPTIONS = ['напитки', 'EFES', 'Технониколь'];
+
 // Собрать URL предзаполненной формы из данных заявки
 function buildRegistryUrl(p) {
   const params = ['usp=pp_url'];
@@ -874,14 +877,22 @@ function buildRegistryUrl(p) {
     if (!value) return;
     params.push('entry.' + entry + '=' + encodeURIComponent(value));
   };
+  // Вопрос с вариантами: если значение не из списка — заполняем «Другое»
+  const putChoice = (entry, value, options) => {
+    value = String(value == null ? '' : value).trim();
+    if (!value) return;
+    if ((options || []).includes(value)) { put(entry, value); return; }
+    params.push('entry.' + entry + '=' + encodeURIComponent('__other_option__'));
+    params.push('entry.' + entry + '.other_option_response=' + encodeURIComponent(value));
+  };
   const joinAddr = (a, c) => [a, c].map(x => (x || '').trim()).filter(Boolean).join(', ');
   const cargo = p.cargo || {}, load = p.loading || {}, unload = p.unloading || {},
         exec = p.executor || {}, cust = p.customer || {}, mgr = p.manager || {};
   // Маршрут в стиле опций формы «Откуда - Куда»
   const route = (cargo.route || '').replace(/\s*—\s*/g, ' - ');
   put(REGISTRY_ENTRY.customer,  cust.name);
-  put(REGISTRY_ENTRY.cargo,     cargo.name);
-  put(REGISTRY_ENTRY.route,     route);
+  putChoice(REGISTRY_ENTRY.cargo, cargo.name, REGISTRY_CARGO_OPTIONS);
+  putChoice(REGISTRY_ENTRY.route, route, []); // у «Откуда - Куда» готовых вариантов нет — всегда «Другое»
   put(REGISTRY_ENTRY.rate,      (p.payment && p.payment.amount) || '');
   put(REGISTRY_ENTRY.loadAddr,  joinAddr(load.address, load.contact));
   put(REGISTRY_ENTRY.unloadAddr,joinAddr(unload.address, unload.contact));
