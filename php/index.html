@@ -4,6 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Генератор документов</title>
+<script>
+// Тема применяется до отрисовки, чтобы не мигало при загрузке.
+// Выбор хранится в localStorage; по умолчанию — системная тема.
+(function () {
+  let t = null;
+  try { t = localStorage.getItem('theme'); } catch (e) {}
+  if (t !== 'dark' && t !== 'light') {
+    t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 <style>
   :root {
     --bg: #f7f5f1;
@@ -14,11 +26,44 @@
     --accent: #2d5b3f;
     --accent-hover: #234a32;
     --accent-soft: #e8f0ea;
+    --on-accent: #ffffff;
     --warn: #b85c2e;
     --danger: #b83b3b;
+    --placeholder: #b3aea4;
+    --err-soft: #fbecec;
+    --warn-soft: #fdf3e8;
+    --invalid-soft: #fdf0f0;
+    --tag-contract-bg: #e6eef6; --tag-contract-fg: #2c5282;
+    --tag-zayavka-bg: #fef3e2;  --tag-zayavka-fg: #92400e;
+    --tag-registry-bg: #e6f4ea; --tag-registry-fg: #1e7e34;
+    --tag-manual-bg: #eeeeee;   --tag-manual-fg: #555555;
     --radius: 10px;
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    --bg: #16150f;
+    --surface: #201f18;
+    --ink: #e9e6dd;
+    --muted: #a09a8c;
+    --line: #38362c;
+    --accent: #7cbb93;
+    --accent-hover: #92cca7;
+    --accent-soft: #24382b;
+    --on-accent: #10241a;
+    --warn: #e09a5f;
+    --danger: #e07a7a;
+    --placeholder: #5f5b50;
+    --err-soft: #3a2424;
+    --warn-soft: #3a2f1e;
+    --invalid-soft: #362121;
+    --tag-contract-bg: #22334a; --tag-contract-fg: #9ec4e8;
+    --tag-zayavka-bg: #3d2f16;  --tag-zayavka-fg: #e5b775;
+    --tag-registry-bg: #1f3526; --tag-registry-fg: #86d29d;
+    --tag-manual-bg: #2c2b24;   --tag-manual-fg: #a09a8c;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
+  a { color: var(--accent); }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
   .container { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; }
   header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
@@ -28,7 +73,7 @@
   /* Tabs */
   .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 5px; width: fit-content; }
   .tab-btn { padding: 8px 20px; border-radius: 7px; border: none; background: transparent; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--muted); font-family: inherit; transition: all 0.15s; }
-  .tab-btn.active { background: var(--accent); color: white; }
+  .tab-btn.active { background: var(--accent); color: var(--on-accent); }
   .tab-btn:hover:not(.active) { background: var(--bg); color: var(--ink); }
 
   .layout { display: grid; grid-template-columns: 1fr 320px; gap: 28px; }
@@ -67,7 +112,7 @@
     transition: border-color 0.15s, background 0.15s;
   }
   .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); background: var(--surface); }
-  .field input::placeholder, .field textarea::placeholder { color: #b3aea4; }
+  .field input::placeholder, .field textarea::placeholder { color: var(--placeholder); }
   .field textarea { resize: vertical; min-height: 70px; }
 
   .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 20px 0 10px; border-top: 1px solid var(--line); padding-top: 16px; }
@@ -76,15 +121,15 @@
   .actions { display: flex; gap: 10px; margin-top: 8px; }
   .btn { padding: 11px 20px; border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-family: inherit; transition: all 0.15s; }
   .btn:hover { background: var(--bg); }
-  .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+  .btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .status { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 14px; display: none; }
   .status.show { display: block; }
   .status.success { background: var(--accent-soft); color: var(--accent); }
-  .status.error { background: #fbecec; color: var(--danger); }
-  .status.warn { background: #fdf3e8; color: var(--warn); }
+  .status.error { background: var(--err-soft); color: var(--danger); }
+  .status.warn { background: var(--warn-soft); color: var(--warn); }
 
   .history-panel { position: sticky; top: 20px; align-self: start; }
   .history-list { display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto; }
@@ -97,13 +142,14 @@
   .history-item a:hover { text-decoration: underline; }
   .history-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
   .type-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-left: 6px; }
-  .type-tag.contract { background: #e6eef6; color: #2c5282; }
-  .type-tag.zayavka { background: #fef3e2; color: #92400e; }
-  .type-tag.registry { background: #e6f4ea; color: #1e7e34; }
+  .type-tag.contract { background: var(--tag-contract-bg); color: var(--tag-contract-fg); }
+  .type-tag.zayavka { background: var(--tag-zayavka-bg); color: var(--tag-zayavka-fg); }
+  .type-tag.registry { background: var(--tag-registry-bg); color: var(--tag-registry-fg); }
+  .type-tag.manual { background: var(--tag-manual-bg); color: var(--tag-manual-fg); }
 
   /* Подсветка поля с ошибкой валидации */
   .field input.invalid, .field select.invalid, .field textarea.invalid {
-    border-color: var(--danger); background: #fdf0f0;
+    border-color: var(--danger); background: var(--invalid-soft);
   }
 
   /* Кратковременная подсветка поля при «Создать заявку к договору» */
@@ -142,7 +188,7 @@
   .contact-bar select:focus { outline: none; border-color: var(--accent); background: var(--surface); }
   .btn-sm { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
   .btn-danger-outline { color: var(--danger); border-color: var(--line); }
-  .btn-danger-outline:hover:not(:disabled) { background: #fbecec; border-color: var(--danger); }
+  .btn-danger-outline:hover:not(:disabled) { background: var(--err-soft); border-color: var(--danger); }
   .btn-danger-outline:disabled { opacity: 0.35; cursor: not-allowed; }
 </style>
 </head>
@@ -162,7 +208,9 @@
 <div class="container">
   <header>
     <h1>Генератор документов</h1>
-    <span class="sub">Договоры и заявки на перевозку · <a href="#" class="logout" onclick="logout();return false;">Выйти</a></span>
+    <span class="sub">Договоры и заявки на перевозку ·
+      <a href="#" class="logout" onclick="toggleTheme();return false;" id="theme-toggle" title="Переключить тему">🌙 Тема</a> ·
+      <a href="#" class="logout" onclick="logout();return false;">Выйти</a></span>
   </header>
 
   <div class="tabs">
@@ -807,6 +855,22 @@
 </div>
 
 <script>
+// === Тёмная тема ===
+function themeLabel() {
+  const el = document.getElementById('theme-toggle');
+  if (!el) return;
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  el.textContent = dark ? '☀️ Тема' : '🌙 Тема';
+}
+function toggleTheme() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = dark ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('theme', next); } catch (e) {}
+  themeLabel();
+}
+document.addEventListener('DOMContentLoaded', themeLabel);
+
 let companies = [];
 let selectedCompanyId = null;
 let selectedRole = null;
@@ -1589,7 +1653,7 @@ function renderDeals() {
     const cp = d.counterparty || {};
     const roleRu = d.ourRole === 'executor' ? 'мы Исполнитель' : d.ourRole === 'customer' ? 'мы Заказчик' : '';
     const srcTag = d.source === 'manual'
-      ? '<span class="type-tag" style="background:#eee;color:#555">вручную</span>'
+      ? '<span class="type-tag manual">вручную</span>'
       : '<span class="type-tag contract">сгенерирован</span>';
     const meta = [d.dateRu, d.ourCompany, roleRu].filter(Boolean).map(escapeHtml).join(' · ');
     const zs = Array.isArray(d.zayavki) ? d.zayavki : [];
