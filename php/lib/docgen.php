@@ -72,6 +72,9 @@ function buildZayavkaDoc($input, $number, $dateStr) {
   $our = isset($companies[$ourCompanyId]) ? $companies[$ourCompanyId] : [];
   $isExecutor = $ourRole === 'executor';
   $amountNum = (int)pick($payment, 'amount', 0);
+  // НДС: 'with' → «с НДС», 'without' → «без НДС», иначе не указываем
+  $vat = pick($payment, 'vat', '');
+  $vatLabel = $vat === 'with' ? 'с НДС' : ($vat === 'without' ? 'без НДС' : '');
 
   if ($isExecutor) {
     $Z = [
@@ -177,7 +180,9 @@ function buildZayavkaDoc($input, $number, $dateStr) {
     'ИСПОЛНИТЕЛЬ_КОНТАКТ' => $I['contact'],
     'ДАННЫЕ_АМ' => $I['vehicle'],
     'ДАННЫЕ_ВОДИТЕЛЯ' => $I['driver'],
-    'СТОИМОСТЬ_ЦИФРАМИ' => $amountNum ? formatAmount($amountNum) : '—',
+    'СТОИМОСТЬ_ЦИФРАМИ' => $amountNum
+      ? formatAmount($amountNum) . ' (' . amountToWords($amountNum) . ') тенге' . ($vatLabel !== '' ? ', ' . $vatLabel : '')
+      : '—',
     'СТОИМОСТЬ_ПРОПИСЬЮ' => $amountNum ? amountToWords($amountNum) : '—',
     'СПОСОБ_ОПЛАТЫ' => pick($payment, 'method', '—'),
     'УСЛОВИЯ_ОПЛАТЫ' => pick($payment, 'conditions', '—'),

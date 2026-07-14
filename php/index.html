@@ -600,9 +600,18 @@
         <div class="panel">
           <h2><span class="step-num" id="z-step-payment">6</span> Оплата и условия</h2>
           <div class="form-grid">
-            <div class="field full">
+            <div class="field">
               <label>Стоимость транспортировки (тенге, цифрами) <span class="req">*</span></label>
-              <input type="text" id="z-amount" placeholder="напр. 500 000" oninput="formatSumInput(this)">
+              <input type="text" id="z-amount" placeholder="напр. 500 000" oninput="formatSumInput(this); updateAmountPreview()">
+              <div id="z-amount-preview" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
+            </div>
+            <div class="field">
+              <label>НДС</label>
+              <select id="z-vat" onchange="updateAmountPreview()">
+                <option value="">не указывать</option>
+                <option value="with">с НДС</option>
+                <option value="without">без НДС</option>
+              </select>
             </div>
             <div class="field">
               <label>Предоплата, %</label>
@@ -801,6 +810,54 @@ let editingDealId = null; // id редактируемого договора в
 let lastZayavkaPayload = null; // данные последней заявки (для кнопки «Добавить в реестр»)
 let lastZayavkaFilename = ''; // имя файла последней заявки (для отметки «в реестре»)
 
+// === Сумма прописью (порт amountToWords с сервера — для предпросмотра) ===
+function amountToWordsJs(n) {
+  n = Math.trunc(Math.abs(Number(n) || 0));
+  if (n === 0) return 'ноль';
+  const onesM = ['','один','два','три','четыре','пять','шесть','семь','восемь','девять','десять','одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать','шестнадцать','семнадцать','восемнадцать','девятнадцать'];
+  const onesF = ['','одна','две','три','четыре','пять','шесть','семь','восемь','девять','десять','одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать','шестнадцать','семнадцать','восемнадцать','девятнадцать'];
+  const tens = ['','','двадцать','тридцать','сорок','пятьдесят','шестьдесят','семьдесят','восемьдесят','девяносто'];
+  const hundreds = ['','сто','двести','триста','четыреста','пятьсот','шестьсот','семьсот','восемьсот','девятьсот'];
+  const plural = (num, one, two, five) => {
+    const m = num % 100;
+    if (m >= 11 && m <= 19) return five;
+    const m10 = num % 10;
+    if (m10 === 1) return one;
+    if (m10 >= 2 && m10 <= 4) return two;
+    return five;
+  };
+  const chunk = (num, fem) => {
+    if (num === 0) return '';
+    const ones = fem ? onesF : onesM;
+    let s = '';
+    const h = Math.trunc(num / 100), r = num % 100;
+    if (h) s += hundreds[h] + ' ';
+    if (r < 20 && r > 0) s += ones[r] + ' ';
+    else if (r >= 20) {
+      s += tens[Math.trunc(r / 10)] + ' ';
+      if (r % 10) s += ones[r % 10] + ' ';
+    }
+    return s;
+  };
+  const mil = Math.trunc(n / 1000000), tho = Math.trunc((n % 1000000) / 1000), rem = n % 1000;
+  let result = '';
+  if (mil) result += chunk(mil, false) + plural(mil, 'миллион', 'миллиона', 'миллионов') + ' ';
+  if (tho) result += chunk(tho, true) + plural(tho, 'тысяча', 'тысячи', 'тысяч') + ' ';
+  if (rem) result += chunk(rem, false);
+  return result.trim();
+}
+
+// Предпросмотр под полем суммы: как будет в документе
+function updateAmountPreview() {
+  const el = document.getElementById('z-amount-preview');
+  if (!el) return;
+  const n = parseInt((val('z-amount') || '').replace(/\s/g, ''), 10);
+  if (!n) { el.textContent = ''; return; }
+  const vat = val('z-vat');
+  const vatLabel = vat === 'with' ? ', с НДС' : (vat === 'without' ? ', без НДС' : '');
+  el.textContent = 'В документе: ' + n.toLocaleString('ru-RU').replace(/,/g, ' ') + ' (' + amountToWordsJs(n) + ') тенге' + vatLabel;
+}
+
 // === Справочник банков Казахстана: БИК (SWIFT) → название ===
 // У филиалов БИК 11 знаков — совпадение ищем по первым 8.
 const KZ_BANKS = {
@@ -856,6 +913,7 @@ const REGISTRY_ENTRY = {
   rate:      '1620438037', // Полная ставка ЗАКАЗЧИКУ
   loadAddr:  '965357115',  // Адрес и контакты погрузки
   unloadAddr:'197168622',  // Адрес и контакты выгрузки
+  vat:       '1805962682', // НДС (вариант «ДА»)
   driver:    '1486455888', // ФИО водителя
   driverPh:  '2006365976', // Контакты Водителя
   vehicle:   '1309521828', // Номер машины/номер прицепа
@@ -894,6 +952,7 @@ function buildRegistryUrl(p) {
   putChoice(REGISTRY_ENTRY.cargo, cargo.name, REGISTRY_CARGO_OPTIONS);
   putChoice(REGISTRY_ENTRY.route, route, []); // у «Откуда - Куда» готовых вариантов нет — всегда «Другое»
   put(REGISTRY_ENTRY.rate,      (p.payment && p.payment.amount) || '');
+  if (p.payment && p.payment.vat === 'with') put(REGISTRY_ENTRY.vat, 'ДА');
   put(REGISTRY_ENTRY.loadAddr,  joinAddr(load.address, load.contact));
   put(REGISTRY_ENTRY.unloadAddr,joinAddr(unload.address, unload.contact));
   put(REGISTRY_ENTRY.driver,    exec.driver);
@@ -1736,6 +1795,7 @@ async function generateZayavka() {
     },
     payment: {
       amount:     val('z-amount').replace(/\s/g, ''),
+      vat:        val('z-vat'),
       method:     val('z-payment-method'),
       conditions: val('z-payment-conditions'),
       documents:  val('z-documents'),
@@ -1796,6 +1856,8 @@ function resetZayavkaForm() {
   initZayavkaDates();
   document.getElementById('z-prepay-pct').value = 0;
   document.getElementById('z-postpay-pct').value = 100;
+  document.getElementById('z-vat').value = '';
+  updateAmountPreview();
   ['zcust', 'zexec'].forEach(k => {
     const f = CONTACT_FORMS[k];
     const p = document.getElementById(f.pickerId);
