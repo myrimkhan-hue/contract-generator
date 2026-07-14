@@ -974,9 +974,7 @@ function parseRequisitesText(text) {
     out.signerFull = signer[1].trim();
     const p = out.signerFull.split(/\s+/);
     if (p.length >= 2 && !/\./.test(out.signerFull)) {
-      // «Вэн-Лун» → «В.-Л.» (инициалы по каждой части через дефис)
-      out.signerShort = p[0] + ' ' + p.slice(1)
-        .map(x => x.split('-').map(c => c[0] + '.').join('-')).join('');
+      out.signerShort = p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join('');
     }
   }
 
