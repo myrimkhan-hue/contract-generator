@@ -906,13 +906,17 @@ function parseRequisitesText(text) {
   if (ph) out.phone = ph[0].replace(/\s+/g, ' ').replace(/^\+\s+7/, '+7').trim();
 
   // Название и тип: ТОО «...» / ИП "..." / АО и т.п.
-  const nm = t.match(/(ТОО|АО|ИП|ООО|ПТ|ПК|КХ|Филиал)\s*([«"'])([^«»"'\n]+)[»"']/);
-  if (nm) {
-    out.type = nm[1];
-    out.name = nm[1] + ' «' + nm[3].trim() + '»';
-  } else {
-    const nm2 = t.match(/(ТОО|АО|ИП|ООО)\s+([A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9 .&-]{1,60}?)(?=\s*(?:,|\n|\(|БИН|ИИН|в лице|$))/);
-    if (nm2) { out.type = nm2[1]; out.name = nm2[1] + ' ' + nm2[2].trim(); }
+  // Берём первое упоминание в тексте, пропуская упоминания в контексте банка
+  // («Наименование банка: "Акционерное общество «ForteBank»"» — не название стороны).
+  const nmQuoted = [...t.matchAll(/(ТОО|АО|ИП|ООО|ПТ|ПК|КХ|Филиал)\s*[«"'“]([^«»"'“”\n]+)[»"'”]/g)]
+    .map(m => ({ i: m.index, form: m[1], name: m[1] + ' «' + m[2].trim() + '»' }));
+  const nmPlain = [...t.matchAll(/(ТОО|АО|ИП|ООО)\s+(?![«"'“])([A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9 .&-]{1,60}?)(?=\s*(?:,|\n|\(|БИН|ИИН|в лице|$))/g)]
+    .map(m => ({ i: m.index, form: m[1], name: m[1] + ' ' + m[2].trim() }));
+  const bankCtx = c => /банк/i.test(t.slice(Math.max(0, c.i - 40), c.i)) || /банк|bank/i.test(c.name);
+  const nmAll = nmQuoted.concat(nmPlain).filter(c => !bankCtx(c)).sort((a, b) => a.i - b.i);
+  if (nmAll.length) {
+    out.name = nmAll[0].name;
+    out.type = nmAll[0].form === 'ИП' ? 'ИП' : 'ТОО'; // в формах тип — только ЮЛ либо ИП
   }
 
   // Адрес: подписанный, иначе строка с городом/улицей.
@@ -964,9 +968,14 @@ function parseRequisitesText(text) {
 
   // Банк: подпись «Банк: …» → справочник по БИК → строка с «банк».
   // Обрезаем город в конце («АО «Банк ЦентрКредит», г.Алматы» → без города).
-  const cleanBank = v => v.trim().replace(/,?\s*г\.\s*[А-ЯЁа-яё-]+\.?\s*$/, '').replace(/[;,\s]+$/, '');
-  const bank = t.match(/банк\s*[:\-–]\s*(\S[^\n]*)/i);
-  if (bank && !/^реквизит/i.test(bank[1])) out.bank = cleanBank(bank[1]);
+  const cleanBank = v => {
+    v = v.trim();
+    // Снимаем только внешние ПАРНЫЕ кавычки: "«ForteBank»" → «ForteBank»
+    while (/^["'“]/.test(v) && /["'”]$/.test(v)) v = v.slice(1, -1).trim();
+    return v.replace(/,?\s*г\.\s*[А-ЯЁа-яё-]+\.?\s*$/, '').replace(/[;,\s]+$/, '');
+  };
+  const bank = t.match(/банк[а-яё]*\s*[:\-–]\s*(\S[^\n]*)/i);
+  if (bank && !/^["'«“]?\s*реквизит/i.test(bank[1])) out.bank = cleanBank(bank[1]);
   if (!out.bank && out.bik && KZ_BANKS[out.bik.slice(0, 8)]) out.bank = KZ_BANKS[out.bik.slice(0, 8)];
   if (!out.bank) {
     const bl = String(text || '').split(/\n/).map(s => s.trim())
