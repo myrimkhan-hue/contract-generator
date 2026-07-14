@@ -895,9 +895,9 @@ function parseRequisitesText(text) {
     if (b) out.bin = b[1];
   }
 
-  // Телефон (казахстанские форматы)
-  const ph = t.match(/(?:\+7|8)[\s(-]*7\d{2}[\s)-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}/);
-  if (ph) out.phone = ph[0].replace(/\s+/g, ' ').trim();
+  // Телефон (казахстанские форматы, в т.ч. «+ 7 (747) …»)
+  const ph = t.match(/(?:\+\s*7|8)[\s(-]*7\d{2}[\s)-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}/);
+  if (ph) out.phone = ph[0].replace(/\s+/g, ' ').replace(/^\+\s+7/, '+7').trim();
 
   // Название и тип: ТОО «...» / ИП "..." / АО и т.п.
   const nm = t.match(/(ТОО|АО|ИП|ООО|ПТ|ПК|КХ|Филиал)\s*([«"'])([^«»"'\n]+)[»"']/);
@@ -925,25 +925,46 @@ function parseRequisitesText(text) {
     return outSegs.join(', ').replace(/[;,\s]+$/, '');
   };
   const addr = t.match(/(?:юридический\s+адрес|юр\.?\s*адрес|фактический\s+адрес|адрес)\s*[:\-–]\s*([^\n]+)/i);
+  const addrMarker = /(^\d{6}|г\.|город\s|ул\.|улица|мкр|проспект|пр-т|пр\.|р-н|район|обл\.|область|Республика|офис|дом\s)/i;
+  const addrStop = /(банк|БИК|ИИК|счет|счёт|@|тел|whatsapp|БИН|ИИН|директор|в лице|основании)/i;
   if (addr) out.address = trimAddress(addr[1]) || addr[1].trim().replace(/[;,\s]+$/, '');
   else {
     const lines = String(text || '').split(/\n/).map(s => s.trim());
-    const cand = lines.filter(l => /(г\.|город\s|ул\.|улица|мкр|проспект|пр-т|пр\.|район|обл\.)/i.test(l) && !/адрес/i.test(l));
-    for (const c of cand.sort((a, b) => b.length - a.length)) {
-      const a = trimAddress(c);
-      if (a) { out.address = a; break; }
+    // Адрес часто разбит на несколько подряд идущих строк — собираем блок целиком
+    const isAddrLine = l => l && addrMarker.test(l) && !addrStop.test(l) && !/адрес/i.test(l);
+    let block = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (!isAddrLine(lines[i])) continue;
+      const grp = [];
+      while (i < lines.length && isAddrLine(lines[i])) { grp.push(lines[i]); i++; }
+      if (grp.length > block.length) block = grp;
+    }
+    if (block.length) {
+      out.address = block.join(', ').replace(/,\s*,/g, ',').replace(/\s+/g, ' ').replace(/[;,\s]+$/, '');
+    } else {
+      // Однострочный текст: вычленяем адресные сегменты из строки
+      const cand = lines.filter(l => addrMarker.test(l) && !/адрес/i.test(l));
+      for (const c of cand.sort((a, b) => b.length - a.length)) {
+        const a = trimAddress(c);
+        if (a) { out.address = a; break; }
+      }
     }
   }
 
-  // Банк: подписанный, иначе строка с «банк», иначе по справочнику БИК
-  const bank = t.match(/банк[а-яё]*\s*[:\-–]\s*([^\n]+)/i);
-  if (bank) out.bank = bank[1].trim().replace(/[;,\s]+$/, '');
-  else {
-    const bl = String(text || '').split(/\n/).map(s => s.trim())
-      .filter(l => /банк/i.test(l) && !/БИК|счет|счёт|ИИК/i.test(l) && !(out.name && l.includes(out.name)));
-    if (bl.length) out.bank = bl.sort((a, b) => a.length - b.length)[0].replace(/[;,\s]+$/, '');
-  }
+  // Банк: подпись «Банк: …» → справочник по БИК → строка с «банк».
+  // Обрезаем город в конце («АО «Банк ЦентрКредит», г.Алматы» → без города).
+  const cleanBank = v => v.trim().replace(/,?\s*г\.\s*[А-ЯЁа-яё-]+\.?\s*$/, '').replace(/[;,\s]+$/, '');
+  const bank = t.match(/банк\s*[:\-–]\s*(\S[^\n]*)/i);
+  if (bank && !/^реквизит/i.test(bank[1])) out.bank = cleanBank(bank[1]);
   if (!out.bank && out.bik && KZ_BANKS[out.bik.slice(0, 8)]) out.bank = KZ_BANKS[out.bik.slice(0, 8)];
+  if (!out.bank) {
+    const bl = String(text || '').split(/\n/).map(s => s.trim())
+      .filter(l => /банк/i.test(l) && !/БИК|счет|счёт|ИИК|реквизит/i.test(l) && !/[:\-–]\s*$/.test(l)
+        && !(out.name && l.includes(out.name)));
+    // Предпочитаем строку, похожую на название банка (АО/ДБ/кавычки)
+    const scored = bl.sort((a, b) => (/(АО|ДБ|«)/.test(b) ? 1 : 0) - (/(АО|ДБ|«)/.test(a) ? 1 : 0) || a.length - b.length);
+    if (scored.length) out.bank = cleanBank(scored[0]);
+  }
 
   // Подписант: «в лице ... ФИО», иначе «Директор: ФИО», иначе ФИО с отчеством
   let signer = t.match(/в\s+лице\s+(?:[а-яё]+\s+){0,3}?([А-ЯЁ][а-яё-]+(?:\s+[А-ЯЁ][а-яё-]+){1,2}|[А-ЯЁ][а-яё-]+\s+[А-ЯЁ]\.\s*[А-ЯЁ]\.)/);
@@ -953,7 +974,9 @@ function parseRequisitesText(text) {
     out.signerFull = signer[1].trim();
     const p = out.signerFull.split(/\s+/);
     if (p.length >= 2 && !/\./.test(out.signerFull)) {
-      out.signerShort = p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join('');
+      // «Вэн-Лун» → «В.-Л.» (инициалы по каждой части через дефис)
+      out.signerShort = p[0] + ' ' + p.slice(1)
+        .map(x => x.split('-').map(c => c[0] + '.').join('-')).join('');
     }
   }
 
@@ -961,11 +984,19 @@ function parseRequisitesText(text) {
   const pos = t.match(/(генеральный\s+директор|исполнительный\s+директор|директор|управляющий|руководитель|президент)/i);
   if (pos) out.position = pos[1][0].toUpperCase() + pos[1].slice(1).toLowerCase().replace(/\s+/g, ' ');
 
-  // Основание
+  // Основание: приводим к вариантам выпадающего списка
   const basis = t.match(/на\s+основании\s+([^\n,;.]+)/i);
-  if (basis) out.basis = basis[1].trim();
-  else if (/устав/i.test(t)) out.basis = 'Устава';
-  else { const dov = t.match(/доверенност[а-яё]*\s*(№?\s*[\w\/-]+(?:\s+от\s+[\d.]+)?)?/i); if (dov) out.basis = ('доверенности ' + (dov[1] || '')).trim(); }
+  let basisRaw = basis ? basis[1].replace(/[)»"']+\s*$/, '').trim() : '';
+  if (!basisRaw && /устав/i.test(t)) basisRaw = 'Устава';
+  if (!basisRaw && /доверенност/i.test(t)) basisRaw = 'Доверенности';
+  if (basisRaw) {
+    if (/^устав/i.test(basisRaw)) out.basis = 'Устава';
+    else if (/доверенност/i.test(basisRaw)) out.basis = 'Доверенности';
+    else if (/приказ/i.test(basisRaw)) out.basis = 'Приказа';
+    else if (/свидетельств/i.test(basisRaw)) out.basis = 'Свидетельства о государственной регистрации ИП';
+    else if (/талон/i.test(basisRaw)) out.basis = 'Талона предпринимателя';
+    else out.basis = basisRaw;
+  }
 
   return out;
 }
