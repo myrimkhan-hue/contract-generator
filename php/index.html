@@ -1405,6 +1405,7 @@ async function saveContact(formKey) {
     const saved = await res.json();
     if (!res.ok) throw new Error(saved.error);
     await loadContacts();
+    loadDeals(); // реквизиты контакта синхронизируются в базу договоров
     document.getElementById(f.pickerId).value = saved.id;
     document.getElementById(f.delBtnId).disabled = false;
     showStatus(f.statusId, `✓ Контрагент «${saved.name}» сохранён.`, 'success');
@@ -1635,6 +1636,7 @@ async function saveDeal() {
     const saved = await res.json();
     if (!res.ok) throw new Error(saved.error);
     await loadDeals();
+    loadContacts(); // контрагент договора синхронизируется в справочник
     resetDealForm();
     showStatus('d-status', `✓ Договор № ${saved.number} сохранён в базе.`, 'success');
   } catch (e) {
@@ -1897,6 +1899,8 @@ async function generate() {
     downloadBlob(blob, filename);
     showStatus('status', `✓ Договор ${contractNumber} сгенерирован и скачан.`, 'success');
     loadHistory();
+    loadDeals();    // договор авто-регистрируется в базе
+    loadContacts(); // контрагент синхронизируется в справочник
   } catch (err) {
     showStatus('status', 'Ошибка: ' + err.message, 'error');
   } finally {
@@ -2051,6 +2055,8 @@ async function generateZayavka() {
     document.getElementById('z-registry-btn').style.display = '';
     document.getElementById('z-registry-hint').style.display = '';
     loadHistory();
+    loadDeals();    // связка заявки с договором могла обновиться
+    loadContacts(); // контрагент заявки синхронизируется в справочник
   } catch (err) {
     showStatus('z-status', 'Ошибка: ' + err.message, 'error');
   } finally {

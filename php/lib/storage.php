@@ -97,6 +97,64 @@ function upsertDeal($deal) {
   return $deal;
 }
 
+// === Синхронизация: справочник контрагентов ↔ база договоров ===
+// Ключ соответствия — БИН; если его нет, название (без учёта регистра).
+// Непустые новые значения перекрывают старые; пустые ничего не затирают.
+// Историю документов это не трогает: пересборка идёт из данных на момент создания.
+
+function cpFields() {
+  return ['type','name','bin','position','signerFull','signerShort',
+    'basis','address','account','bank','bik','phone','email'];
+}
+
+// Реквизиты контрагента (из договора/заявки) → обновить или создать контакт
+function syncContactFromCounterparty($cp) {
+  $cp = normalizeCounterparty($cp);
+  if ($cp['name'] === '') return;
+  $contacts = loadContacts();
+  $idx = -1;
+  if ($cp['bin'] !== '') {
+    foreach ($contacts as $i => $c) {
+      if (isset($c['bin']) && $c['bin'] !== '' && $c['bin'] === $cp['bin']) { $idx = $i; break; }
+    }
+  }
+  if ($idx < 0) {
+    foreach ($contacts as $i => $c) {
+      if (mb_strtolower(isset($c['name']) ? $c['name'] : '') === mb_strtolower($cp['name'])) { $idx = $i; break; }
+    }
+  }
+  if ($idx >= 0) {
+    foreach (cpFields() as $f) if ($cp[$f] !== '') $contacts[$idx][$f] = $cp[$f];
+    $contacts[$idx]['label'] = $contacts[$idx]['name'];
+  } else {
+    $contact = ['id' => (string) round(microtime(true) * 1000)];
+    foreach (cpFields() as $f) $contact[$f] = $cp[$f];
+    $contact['label'] = $contact['name'];
+    array_unshift($contacts, $contact);
+  }
+  saveJson(CONTACTS_FILE, $contacts);
+}
+
+// Контакт из справочника → обновить реквизиты этого контрагента во всех договорах базы
+function syncDealsFromContact($contact) {
+  $name = isset($contact['name']) ? $contact['name'] : '';
+  if ($name === '') return;
+  $deals = loadDeals();
+  $changed = false;
+  foreach ($deals as $i => $d) {
+    $cp = isset($d['counterparty']) && is_array($d['counterparty']) ? $d['counterparty'] : [];
+    $byBin = !empty($contact['bin']) && isset($cp['bin']) && $cp['bin'] === $contact['bin'];
+    $byName = mb_strtolower(isset($cp['name']) ? $cp['name'] : '') === mb_strtolower($name);
+    if (!$byBin && !$byName) continue;
+    foreach (cpFields() as $f) {
+      if (isset($contact[$f]) && $contact[$f] !== '') $cp[$f] = $contact[$f];
+    }
+    $deals[$i]['counterparty'] = normalizeCounterparty($cp);
+    $changed = true;
+  }
+  if ($changed) saveDeals($deals);
+}
+
 function deleteDeal($id) {
   $deals = loadDeals();
   $filtered = array_values(array_filter($deals, function ($d) use ($id) { return $d['id'] !== $id; }));

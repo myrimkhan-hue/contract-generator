@@ -172,6 +172,8 @@ try {
     }
     if (!$found) array_unshift($contacts, $contact);
     saveJson(CONTACTS_FILE, $contacts);
+    // Реквизиты контакта → во все договоры этого контрагента в базе
+    syncDealsFromContact($contact);
     jsonResponse($contact);
     exit;
   }
@@ -207,6 +209,8 @@ try {
       'source'       => 'manual',
       'counterparty' => normalizeCounterparty($cp),
     ]);
+    // Реквизиты контрагента из базы → в справочник контактов
+    syncContactFromCounterparty($deal['counterparty']);
     jsonResponse($deal);
     exit;
   }
@@ -325,6 +329,8 @@ try {
       'source'       => 'generated',
       'counterparty' => normalizeCounterparty($other),
     ]);
+    // Контрагент нового договора → в справочник контактов
+    syncContactFromCounterparty($other);
 
     sendDocx($res['buffer'], $res['filename'], 'X-Contract-Number', $contractNumber);
     exit;
@@ -398,6 +404,9 @@ try {
         break;
       }
     }
+
+    // Контрагент заявки (другая сторона) → в справочник контактов
+    syncContactFromCounterparty($isExecutor ? $customer : $executor);
 
     sendDocx($res['buffer'], $res['filename'], 'X-Zayavka-Number', $zayavkaNumber);
     exit;
