@@ -838,6 +838,17 @@
             Экспорт — таблица договоров для Excel. Резервная копия — файл со всей базой,
             контрагентами и историей (для восстановления или переноса).
           </div>
+          <div class="section-label">Автокопии (создаются раз в день, хранятся последние 30)</div>
+          <div class="actions" style="flex-wrap:wrap;align-items:center">
+            <select id="auto-backups" style="flex:1;min-width:200px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:9px 11px;border-radius:6px;font-size:14px;font-family:inherit">
+              <option value="">— автокопий пока нет —</option>
+            </select>
+            <button class="btn" onclick="restoreAutoBackup()">↩ Восстановить из автокопии</button>
+          </div>
+          <div style="color:var(--muted);font-size:12px;margin-top:8px">
+            Перед любым восстановлением текущее состояние автоматически сохраняется
+            в отдельную копию — откат можно откатить.
+          </div>
         </div>
       </div>
     </div>
@@ -1859,6 +1870,7 @@ function restoreData(input) {
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j.error || 'Ошибка');
       await loadDeals(); await loadContacts(); await loadHistory();
+      loadAutoBackups();
       showStatus('d-status', '✓ Данные восстановлены из резервной копии.', 'success');
     } catch (e) {
       showStatus('d-status', 'Не удалось восстановить: ' + e.message, 'error');
@@ -1866,6 +1878,46 @@ function restoreData(input) {
     input.value = '';
   };
   reader.readAsText(file);
+}
+
+// === Автокопии ===
+async function loadAutoBackups() {
+  const sel = document.getElementById('auto-backups');
+  if (!sel) return;
+  try {
+    const res = await fetch('api/index.php?r=backups');
+    const list = await res.json();
+    if (!Array.isArray(list) || !list.length) {
+      sel.innerHTML = '<option value="">— автокопий пока нет —</option>';
+      return;
+    }
+    sel.innerHTML = list.map(b => {
+      const kb = Math.max(1, Math.round((b.size || 0) / 1024));
+      const label = b.name.includes('pre-restore') ? b.date + ' (перед восстановлением)' : b.date;
+      return `<option value="${escapeHtml(b.name)}">${escapeHtml(label)} · ${kb} КБ</option>`;
+    }).join('');
+  } catch (e) {}
+}
+
+async function restoreAutoBackup() {
+  const sel = document.getElementById('auto-backups');
+  const name = sel && sel.value;
+  if (!name) return showStatus('d-status', 'Автокопий пока нет — они создаются раз в день автоматически.', 'warn');
+  const label = sel.options[sel.selectedIndex].textContent;
+  if (!confirm(`Восстановить данные из автокопии ${label}? Текущее состояние будет заменено (перед этим сохранится страховочная копия).`)) return;
+  try {
+    const res = await fetch('api/index.php?r=backups-restore', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) throw new Error(j.error || 'Ошибка');
+    await loadDeals(); await loadContacts(); await loadHistory();
+    loadAutoBackups();
+    showStatus('d-status', '✓ Данные восстановлены из автокопии.', 'success');
+  } catch (e) {
+    showStatus('d-status', 'Не удалось восстановить: ' + e.message, 'error');
+  }
 }
 
 // === Способ оплаты: предоплата / постоплата ===
@@ -2354,6 +2406,7 @@ function initApp() {
   resetDealForm();
   renderNoteChips();
   initPasteBoxes();
+  loadAutoBackups();
 }
 
 checkAuthAndInit();

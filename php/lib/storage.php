@@ -97,6 +97,55 @@ function upsertDeal($deal) {
   return $deal;
 }
 
+// === Автоматические резервные копии ===
+// Раз в день (при первом запросе к API) полная копия данных сохраняется
+// в DATA_DIR/backups; хранятся последние MAX_BACKUPS копий.
+define('BACKUPS_DIR', DATA_DIR . '/backups');
+define('MAX_BACKUPS', 30);
+
+function buildBackupData() {
+  return [
+    'version'  => 2,
+    'date'     => gmdate('Y-m-d\TH:i:s\Z'),
+    'deals'    => loadDeals(),
+    'contacts' => loadContacts(),
+    'docs'     => loadDocs(),
+    'counters' => loadJson(COUNTERS_FILE, []),
+  ];
+}
+
+// Применить данные копии (общая часть ручного и автоматического восстановления)
+function applyBackupData($b) {
+  if (isset($b['deals'])    && is_array($b['deals']))    saveDeals($b['deals']);
+  if (isset($b['contacts']) && is_array($b['contacts'])) saveJson(CONTACTS_FILE, $b['contacts']);
+  if (isset($b['docs'])     && is_array($b['docs']))     saveJson(DOCS_FILE, $b['docs']);
+  if (isset($b['history'])  && is_array($b['history']))  saveJson(HISTORY_FILE, $b['history']); // старые копии
+  if (isset($b['counters']) && is_array($b['counters'])) saveJson(COUNTERS_FILE, $b['counters']);
+}
+
+function maybeAutoBackup() {
+  $file = BACKUPS_DIR . '/backup-' . date('Y-m-d') . '.json';
+  if (is_file($file)) return; // сегодняшняя копия уже есть
+  if (!is_dir(BACKUPS_DIR)) @mkdir(BACKUPS_DIR, 0775, true);
+  saveJson($file, buildBackupData());
+  $all = glob(BACKUPS_DIR . '/backup-*.json');
+  if (is_array($all)) {
+    sort($all);
+    while (count($all) > MAX_BACKUPS) @unlink(array_shift($all));
+  }
+}
+
+function listAutoBackups() {
+  $all = glob(BACKUPS_DIR . '/backup-*.json');
+  if (!is_array($all)) $all = [];
+  rsort($all); // свежие сверху
+  $out = [];
+  foreach ($all as $f) {
+    $out[] = ['name' => basename($f), 'date' => substr(basename($f), 7, 10), 'size' => filesize($f)];
+  }
+  return $out;
+}
+
 // === Синхронизация: справочник контрагентов ↔ база договоров ===
 // Ключ соответствия — БИН; если его нет, название (без учёта регистра).
 // Непустые новые значения перекрывают старые; пустые ничего не затирают.

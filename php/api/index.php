@@ -90,6 +90,9 @@ try {
     exit;
   }
 
+  // Ежедневная автоматическая резервная копия (не чаще раза в день, ~мгновенно)
+  maybeAutoBackup();
+
   // === GET /api/companies ===
   if ($method === 'GET' && $segs === ['companies']) {
     $list = [];
@@ -252,16 +255,9 @@ try {
 
   // === Резервная копия / восстановление ===
   if ($segs === ['backup'] && $method === 'GET') {
-    $data = [
-      'version'  => 2,
-      'deals'    => loadDeals(),
-      'contacts' => loadContacts(),
-      'docs'     => loadDocs(),
-      'counters' => loadJson(COUNTERS_FILE, []),
-    ];
     header('Content-Type: application/json; charset=utf-8');
     header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode('backup_generator.json'));
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    echo json_encode(buildBackupData(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
   }
   if ($segs === ['restore'] && $method === 'POST') {
@@ -269,11 +265,31 @@ try {
     if (!isset($b['deals']) && !isset($b['contacts']) && !isset($b['docs']) && !isset($b['history'])) {
       jsonResponse(['error' => 'Файл не похож на резервную копию.'], 400); exit;
     }
-    if (isset($b['deals'])    && is_array($b['deals']))    saveDeals($b['deals']);
-    if (isset($b['contacts']) && is_array($b['contacts'])) saveJson(CONTACTS_FILE, $b['contacts']);
-    if (isset($b['docs'])     && is_array($b['docs']))     saveJson(DOCS_FILE, $b['docs']);
-    if (isset($b['history'])  && is_array($b['history']))  saveJson(HISTORY_FILE, $b['history']); // старые копии
-    if (isset($b['counters']) && is_array($b['counters'])) saveJson(COUNTERS_FILE, $b['counters']);
+    // Перед восстановлением из файла — страховочная копия текущего состояния
+    if (!is_dir(BACKUPS_DIR)) @mkdir(BACKUPS_DIR, 0775, true);
+    saveJson(BACKUPS_DIR . '/backup-' . date('Y-m-d') . '-pre-restore.json', buildBackupData());
+    applyBackupData($b);
+    jsonResponse(['ok' => true]);
+    exit;
+  }
+
+  // === Автокопии: список и восстановление ===
+  if ($segs === ['backups'] && $method === 'GET') {
+    jsonResponse(listAutoBackups());
+    exit;
+  }
+  if ($segs === ['backups-restore'] && $method === 'POST') {
+    $b = body();
+    $name = basename(pick($b, 'name', ''));
+    $file = BACKUPS_DIR . '/' . $name;
+    if (!preg_match('/^backup-\d{4}-\d{2}-\d{2}(-pre-restore)?\.json$/', $name) || !is_file($file)) {
+      jsonResponse(['error' => 'Копия не найдена.'], 404); exit;
+    }
+    $data = json_decode(file_get_contents($file), true);
+    if (!is_array($data)) { jsonResponse(['error' => 'Копия повреждена.'], 400); exit; }
+    // Страховочная копия текущего состояния перед откатом
+    saveJson(BACKUPS_DIR . '/backup-' . date('Y-m-d') . '-pre-restore.json', buildBackupData());
+    applyBackupData($data);
     jsonResponse(['ok' => true]);
     exit;
   }
