@@ -139,14 +139,14 @@ try {
     exit;
   }
 
-  // === Исходные данные заявки (для предзаполнения Google Формы из истории) ===
+  // === Исходные данные документа (предзаполнение Google Формы, дублирование) ===
   if ($segs === ['doc-input'] && $method === 'GET') {
     $filename = basename(rawurldecode(isset($_GET['name']) ? $_GET['name'] : ''));
     $doc = findDocByFilename($filename);
-    if (!$doc || ($doc['type'] ?? '') !== 'zayavka' || empty($doc['input'])) {
-      jsonResponse(['error' => 'Данные заявки не найдены'], 404); exit;
+    if (!$doc || empty($doc['input'])) {
+      jsonResponse(['error' => 'Данные документа не найдены'], 404); exit;
     }
-    jsonResponse(['input' => $doc['input']]);
+    jsonResponse(['type' => isset($doc['type']) ? $doc['type'] : 'contract', 'input' => $doc['input']]);
     exit;
   }
 

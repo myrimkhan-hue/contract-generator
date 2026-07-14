@@ -1280,6 +1280,86 @@ function unmarkRegistry(filename) {
   markRegistry(filename, false);
 }
 
+// === Дублирование документа из истории ===
+// Заполняет форму данными старого документа; номер и дата будут новыми при генерации.
+async function duplicateDoc(filename) {
+  try {
+    const res = await fetch('api/index.php?r=doc-input&name=' + encodeURIComponent(filename));
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'ошибка'); }
+    const data = await res.json();
+    if (data.type === 'zayavka') fillZayavkaFromInput(data.input || {});
+    else fillContractFromInput(data.input || {});
+  } catch (e) {
+    alert('Не удалось загрузить данные документа: ' + e.message);
+  }
+}
+
+function setVal(id, v) {
+  const el = document.getElementById(id);
+  if (el && v !== undefined && v !== null && v !== '') el.value = v;
+}
+
+function fillContractFromInput(inp) {
+  switchTab('contract');
+  if (inp.ourCompanyId) selectCompany(inp.ourCompanyId);
+  if (inp.ourRole) setRole(inp.ourRole);
+  if (inp.other) fillParty('contract', inp.other);
+  showStatus('status', 'Форма заполнена данными старого договора. Проверьте и нажмите «Создать договор» — номер и дата будут новыми.', 'success');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function fillZayavkaFromInput(inp) {
+  switchTab('zayavka');
+  if (inp.ourCompanyId) zSelectCompany(inp.ourCompanyId);
+  const isExec = inp.ourRole === 'executor';
+  if (inp.ourRole) setZRole(inp.ourRole);
+  setVal('z-contract-number', inp.contractNumber);
+  setVal('z-contract-date', inp.contractDate);
+  const mgr = inp.manager || {}, cargo = inp.cargo || {}, load = inp.loading || {},
+        unload = inp.unloading || {}, exec = inp.executor || {}, cust = inp.customer || {},
+        pay = inp.payment || {};
+  setVal('z-manager-name', mgr.name);
+  setVal('z-manager-phone', mgr.phone);
+  setVal('z-shipper', cargo.shipper);
+  setVal('z-consignee', cargo.consignee);
+  // Маршрут хранится строкой «Откуда — Куда» — раскладываем обратно
+  const rt = String(cargo.route || '').split(/\s+—\s+/);
+  setVal('z-route-from', rt[0]);
+  setVal('z-route-to', rt.slice(1).join(' — '));
+  setVal('z-cargo-name', cargo.name);
+  setVal('z-qty', cargo.qty);
+  setVal('z-dimensions', cargo.dimensions);
+  setVal('z-loading-date', inp._loadingISO); // у старых заявок ISO-даты нет — оставится пустой
+  setVal('z-loading-address', load.address);
+  setVal('z-loading-contact', load.contact);
+  setVal('z-unloading-address', unload.address);
+  setVal('z-unloading-contact', unload.contact);
+  if (isExec) {
+    setVal('z-own-contact', exec.contact);
+    setVal('z-own-vehicle', exec.vehicle);
+    setVal('z-own-driver', exec.driver);
+    fillParty('zcust', cust);
+    setVal('z-cust-manager', cust.manager);
+    setVal('z-cust-manager-phone', cust.managerPhone);
+  } else {
+    fillParty('zexec', exec);
+    setVal('z-exec-contact', exec.contact);
+    setVal('z-vehicle', exec.vehicle);
+    setVal('z-driver', exec.driver);
+    setVal('z-exec-talon', exec.talon);
+  }
+  setVal('z-amount', pay.amount ? Number(pay.amount).toLocaleString('ru-RU').replace(/,/g, ' ') : '');
+  setVal('z-vat', pay.vat);
+  updateAmountPreview();
+  setVal('z-payment-method', pay.method);
+  setVal('z-payment-conditions', pay.conditions);
+  setVal('z-documents', pay.documents);
+  setVal('z-notes', pay.notes);
+  syncNoteChips();
+  showStatus('z-status', 'Форма заполнена данными старой заявки. Проверьте (особенно дату погрузки!) и нажмите «Создать заявку» — номер и дата будут новыми.', 'success');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // «В реестр» из истории: данные заявки хранятся на сервере — подтянуть и открыть форму
 async function openRegistryFromHistory(filename) {
   try {
@@ -2201,13 +2281,14 @@ async function loadHistory() {
     const zayavkaBtn = isZayavka
       ? (item.registry ? '' : `<a href="#" onclick="openRegistryFromHistory('${escapeHtml(item.filename)}');return false;" style="margin-left:12px">📋 В реестр</a>`)
       : `<a href="#" onclick="createZayavkaFromContract('${escapeHtml(item.number)}','${iso}');return false;" style="margin-left:12px">🚚 Создать заявку</a>`;
+    const dupBtn = `<a href="#" onclick="duplicateDoc('${escapeHtml(item.filename)}');return false;" title="Заполнить форму данными этого документа" style="margin-left:12px">⧉ Дублировать</a>`;
     return `
       <div class="history-item">
         <div class="num">${escapeHtml(item.number)}${typeTag}${registryTag}</div>
         <div class="meta">${dateStr} · ${escapeHtml(item.ourCompany)}</div>
         <div class="other">↔ ${escapeHtml(item.otherName)}</div>
         ${sub}
-        <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>${zayavkaBtn}
+        <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>${dupBtn}${zayavkaBtn}
       </div>
     `;
   }).join('');
