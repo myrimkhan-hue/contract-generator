@@ -868,6 +868,12 @@ function updateAmountPreview() {
 // Вставляете блок реквизитов как есть (из письма/WhatsApp) — раскладываем по полям.
 function parseRequisitesText(text) {
   const out = {};
+  // Полные организационно-правовые формы → аббревиатуры (для распознавания названия)
+  text = String(text || '')
+    .replace(/товарищество\s+с\s+ограниченной\s+ответственностью/gi, 'ТОО')
+    .replace(/общество\s+с\s+ограниченной\s+ответственностью/gi, 'ООО')
+    .replace(/акционерное\s+общество/gi, 'АО')
+    .replace(/индивидуальный\s+предприниматель/gi, 'ИП');
   let t = ' ' + String(text || '').replace(/ /g, ' ') + ' ';
 
   // Email
@@ -912,14 +918,19 @@ function parseRequisitesText(text) {
   // Адрес: подписанный, иначе строка с городом/улицей.
   // Из строки берём только адресные сегменты (между запятыми), отбрасывая БИН/счёт/телефон и т.п.
   const trimAddress = (line) => {
-    const stop = /(БИН|ИИН|\bKZ[0-9A-Za-z]{18}|БИК|\+7|тел|@|в лице|счет|счёт|ИИК|банк)/i;
+    const stop = /(БИН|ИИН|\bKZ[0-9A-Za-z]{18}|БИК|\+7|тел|@|в лице|счет|счёт|ИИК|банк|кбе|e-?mail|директор)/i;
     const segs = line.split(',').map(s => s.trim());
     let start = segs.findIndex(s => /(^\d{6}$|г\.|город\s|обл\.|область)/i.test(s));
     if (start < 0) start = segs.findIndex(s => /(ул\.|улица|мкр|проспект|пр-т|пр\.)/i.test(s));
     if (start < 0) return '';
     const outSegs = [];
-    for (let i = start; i < segs.length && outSegs.length < 5; i++) {
-      if (stop.test(segs[i])) break;
+    for (let i = start; i < segs.length && outSegs.length < 8; i++) {
+      if (stop.test(segs[i])) {
+        // В сегменте начинается другое поле — заберём адресное начало («кв. 1. Банк…» → «кв. 1»)
+        const head = segs[i].match(/^((?:кв|каб|оф|офис|дом|корпус|здание|уч)\.?\s*[\w\/-]+)[.;\s]/i);
+        if (head) outSegs.push(head[1]);
+        break;
+      }
       outSegs.push(segs[i]);
     }
     return outSegs.join(', ').replace(/[;,\s]+$/, '');
