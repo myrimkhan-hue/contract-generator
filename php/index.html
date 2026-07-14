@@ -208,6 +208,7 @@
             <button type="button" class="btn btn-sm" onclick="saveContact('contract')">💾 Сохранить</button>
             <button type="button" class="btn btn-sm btn-danger-outline" id="contact-del-btn" onclick="deleteContact('contract')" disabled>🗑</button>
           </div>
+          <div data-paste="contract"></div>
           <div class="form-grid">
             <div class="field">
               <label>Тип <span class="req">*</span></label>
@@ -423,6 +424,8 @@
             <button type="button" class="btn btn-sm" onclick="saveContact('zexec')">💾 Сохранить</button>
             <button type="button" class="btn btn-sm btn-danger-outline" id="zexec-contact-del-btn" onclick="deleteContact('zexec')" disabled>🗑</button>
           </div>
+          <div data-paste="zexec">
+          </div>
           <div class="form-grid">
             <div class="field">
               <label>Тип</label>
@@ -519,6 +522,8 @@
             </select>
             <button type="button" class="btn btn-sm" onclick="saveContact('zcust')">💾 Сохранить</button>
             <button type="button" class="btn btn-sm btn-danger-outline" id="zcust-contact-del-btn" onclick="deleteContact('zcust')" disabled>🗑</button>
+          </div>
+          <div data-paste="zcust">
           </div>
           <div class="form-grid">
             <div class="field">
@@ -660,6 +665,7 @@
       <div id="tab-deals" style="display:none">
         <div class="panel">
           <h2><span class="step-num">+</span> Добавить существующий договор</h2>
+          <div data-paste="deal"></div>
           <div class="form-grid">
             <div class="field">
               <label>Номер договора <span class="req">*</span></label>
@@ -856,6 +862,164 @@ function updateAmountPreview() {
   const vat = val('z-vat');
   const vatLabel = vat === 'with' ? ', с НДС' : (vat === 'without' ? ', без НДС' : '');
   el.textContent = 'В документе: ' + n.toLocaleString('ru-RU').replace(/,/g, ' ') + ' (' + amountToWordsJs(n) + ') тенге' + vatLabel;
+}
+
+// === ТЕСТ: разбор реквизитов из свободного текста ===
+// Вставляете блок реквизитов как есть (из письма/WhatsApp) — раскладываем по полям.
+function parseRequisitesText(text) {
+  const out = {};
+  let t = ' ' + String(text || '').replace(/ /g, ' ') + ' ';
+
+  // Email
+  const em = t.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/);
+  if (em) out.email = em[0];
+
+  // Счёт (IBAN KZ, 20 знаков)
+  const ib = t.match(/\bKZ[0-9A-Za-z]{18}\b/i);
+  if (ib) { out.account = ib[0].toUpperCase(); t = t.replace(ib[0], ' '); }
+
+  // БИК: сначала подписанный, иначе по формату SWIFT (XXXXKZXX)
+  const bikLab = t.match(/БИК[\s:№-]*([A-Za-z0-9]{8,11})/i);
+  if (bikLab) out.bik = bikLab[1].toUpperCase();
+  else {
+    const sw = t.match(/\b[A-Za-z]{4}KZ[A-Za-z0-9]{2}(?:[A-Za-z0-9]{3})?\b/);
+    if (sw) out.bik = sw[0].toUpperCase();
+  }
+  if (out.bik) t = t.replace(new RegExp(out.bik, 'i'), ' ');
+
+  // БИН/ИИН: подписанный, иначе одиночные 12 цифр подряд
+  const binLab = t.match(/(?:БИН|ИИН)[\/\s:№-]*(\d{12})/i);
+  if (binLab) out.bin = binLab[1];
+  else {
+    const b = t.match(/(?:^|\D)(\d{12})(?:\D|$)/);
+    if (b) out.bin = b[1];
+  }
+
+  // Телефон (казахстанские форматы)
+  const ph = t.match(/(?:\+7|8)[\s(-]*7\d{2}[\s)-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}/);
+  if (ph) out.phone = ph[0].replace(/\s+/g, ' ').trim();
+
+  // Название и тип: ТОО «...» / ИП "..." / АО и т.п.
+  const nm = t.match(/(ТОО|АО|ИП|ООО|ПТ|ПК|КХ|Филиал)\s*([«"'])([^«»"'\n]+)[»"']/);
+  if (nm) {
+    out.type = nm[1];
+    out.name = nm[1] + ' «' + nm[3].trim() + '»';
+  } else {
+    const nm2 = t.match(/(ТОО|АО|ИП|ООО)\s+([A-Za-zА-Яа-яЁё0-9][A-Za-zА-Яа-яЁё0-9 .&-]{1,60}?)(?=\s*(?:,|\n|\(|БИН|ИИН|в лице|$))/);
+    if (nm2) { out.type = nm2[1]; out.name = nm2[1] + ' ' + nm2[2].trim(); }
+  }
+
+  // Адрес: подписанный, иначе строка с городом/улицей.
+  // Из строки берём только адресные сегменты (между запятыми), отбрасывая БИН/счёт/телефон и т.п.
+  const trimAddress = (line) => {
+    const stop = /(БИН|ИИН|\bKZ[0-9A-Za-z]{18}|БИК|\+7|тел|@|в лице|счет|счёт|ИИК|банк)/i;
+    const segs = line.split(',').map(s => s.trim());
+    let start = segs.findIndex(s => /(^\d{6}$|г\.|город\s|обл\.|область)/i.test(s));
+    if (start < 0) start = segs.findIndex(s => /(ул\.|улица|мкр|проспект|пр-т|пр\.)/i.test(s));
+    if (start < 0) return '';
+    const outSegs = [];
+    for (let i = start; i < segs.length && outSegs.length < 5; i++) {
+      if (stop.test(segs[i])) break;
+      outSegs.push(segs[i]);
+    }
+    return outSegs.join(', ').replace(/[;,\s]+$/, '');
+  };
+  const addr = t.match(/(?:юридический\s+адрес|юр\.?\s*адрес|фактический\s+адрес|адрес)\s*[:\-–]\s*([^\n]+)/i);
+  if (addr) out.address = trimAddress(addr[1]) || addr[1].trim().replace(/[;,\s]+$/, '');
+  else {
+    const lines = String(text || '').split(/\n/).map(s => s.trim());
+    const cand = lines.filter(l => /(г\.|город\s|ул\.|улица|мкр|проспект|пр-т|пр\.|район|обл\.)/i.test(l) && !/адрес/i.test(l));
+    for (const c of cand.sort((a, b) => b.length - a.length)) {
+      const a = trimAddress(c);
+      if (a) { out.address = a; break; }
+    }
+  }
+
+  // Банк: подписанный, иначе строка с «банк», иначе по справочнику БИК
+  const bank = t.match(/банк[а-яё]*\s*[:\-–]\s*([^\n]+)/i);
+  if (bank) out.bank = bank[1].trim().replace(/[;,\s]+$/, '');
+  else {
+    const bl = String(text || '').split(/\n/).map(s => s.trim())
+      .filter(l => /банк/i.test(l) && !/БИК|счет|счёт|ИИК/i.test(l) && !(out.name && l.includes(out.name)));
+    if (bl.length) out.bank = bl.sort((a, b) => a.length - b.length)[0].replace(/[;,\s]+$/, '');
+  }
+  if (!out.bank && out.bik && KZ_BANKS[out.bik.slice(0, 8)]) out.bank = KZ_BANKS[out.bik.slice(0, 8)];
+
+  // Подписант: «в лице ... ФИО», иначе «Директор: ФИО», иначе ФИО с отчеством
+  let signer = t.match(/в\s+лице\s+(?:[а-яё]+\s+){0,3}?([А-ЯЁ][а-яё-]+(?:\s+[А-ЯЁ][а-яё-]+){1,2}|[А-ЯЁ][а-яё-]+\s+[А-ЯЁ]\.\s*[А-ЯЁ]\.)/);
+  if (!signer) signer = t.match(/(?:директор|руководитель|управляющий|президент)[а-яё]*\s*[:\-–]?\s+([А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+(?:\s+[А-ЯЁ][а-яё-]+)?)/i);
+  if (!signer) signer = t.match(/\b([А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+(?:вич|вна|ич|чна|ызы|лы))\b/);
+  if (signer) {
+    out.signerFull = signer[1].trim();
+    const p = out.signerFull.split(/\s+/);
+    if (p.length >= 2 && !/\./.test(out.signerFull)) {
+      out.signerShort = p[0] + ' ' + p.slice(1).map(x => x[0] + '.').join('');
+    }
+  }
+
+  // Должность
+  const pos = t.match(/(генеральный\s+директор|исполнительный\s+директор|директор|управляющий|руководитель|президент)/i);
+  if (pos) out.position = pos[1][0].toUpperCase() + pos[1].slice(1).toLowerCase().replace(/\s+/g, ' ');
+
+  // Основание
+  const basis = t.match(/на\s+основании\s+([^\n,;.]+)/i);
+  if (basis) out.basis = basis[1].trim();
+  else if (/устав/i.test(t)) out.basis = 'Устава';
+  else { const dov = t.match(/доверенност[а-яё]*\s*(№?\s*[\w\/-]+(?:\s+от\s+[\d.]+)?)?/i); if (dov) out.basis = ('доверенности ' + (dov[1] || '')).trim(); }
+
+  return out;
+}
+
+// Русские подписи полей — для отчёта, что распознано
+const REQ_FIELD_LABELS = {
+  type: 'тип', name: 'название', bin: 'БИН/ИИН', position: 'должность',
+  signerFull: 'подписант', signerShort: 'подписант кратко', basis: 'основание',
+  address: 'адрес', account: 'счёт', bank: 'банк', bik: 'БИК', phone: 'телефон', email: 'email',
+};
+
+// Отрисовать блоки «Вставить реквизиты текстом» в местах с data-paste
+function initPasteBoxes() {
+  document.querySelectorAll('[data-paste]').forEach(ph => {
+    const key = ph.getAttribute('data-paste');
+    ph.innerHTML = `
+      <div style="margin:6px 0 10px">
+        <a href="#" onclick="togglePasteBox('${key}');return false;" style="font-size:13px">📋 Вставить реквизиты текстом (тест)</a>
+        <div id="paste-${key}-box" style="display:none;margin-top:6px">
+          <textarea id="paste-${key}-text" rows="5" style="width:100%"
+            placeholder="Вставьте реквизиты одним текстом — например:&#10;ТОО «Компания», БИН 123456789012, адрес: г. Алматы, ул. Абая 1&#10;ИИК KZ123456789012345678, БИК HSBKKZKX, АО «Народный Банк Казахстана»&#10;Директор Иванов Иван Иванович, на основании Устава, +7 701 234 56 78"></textarea>
+          <div class="actions" style="margin-top:6px">
+            <button type="button" class="btn btn-sm" onclick="parsePasted('${key}')">✨ Заполнить поля</button>
+            <button type="button" class="btn btn-sm" onclick="togglePasteBox('${key}')">Скрыть</button>
+          </div>
+          <div id="paste-${key}-info" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
+        </div>
+      </div>`;
+  });
+}
+
+function togglePasteBox(key) {
+  const box = document.getElementById('paste-' + key + '-box');
+  box.style.display = box.style.display === 'none' ? '' : 'none';
+}
+
+function parsePasted(key) {
+  const text = val('paste-' + key + '-text');
+  const info = document.getElementById('paste-' + key + '-info');
+  if (!text.trim()) { info.textContent = 'Вставьте текст с реквизитами.'; return; }
+  const obj = parseRequisitesText(text);
+  const found = Object.keys(obj).filter(k => obj[k] && REQ_FIELD_LABELS[k] && k !== 'signerShort');
+  if (!found.length) { info.textContent = 'Не удалось распознать реквизиты — заполните поля вручную.'; return; }
+  if (key === 'deal') {
+    for (const [field, elId] of Object.entries(D_MAP)) {
+      const el = document.getElementById(elId);
+      if (el && obj[field]) el.value = obj[field];
+    }
+  } else {
+    fillParty(key, obj);
+  }
+  const missed = Object.keys(REQ_FIELD_LABELS).filter(k => k !== 'signerShort' && k !== 'type' && !obj[k]);
+  info.textContent = '✓ Распознано: ' + found.map(k => REQ_FIELD_LABELS[k]).join(', ')
+    + (missed.length ? '. Не найдено: ' + missed.map(k => REQ_FIELD_LABELS[k]).join(', ') + ' — проверьте/заполните вручную.' : '.');
 }
 
 // === Справочник банков Казахстана: БИК (SWIFT) → название ===
@@ -1981,6 +2145,7 @@ function initApp() {
   initZayavkaDates();
   resetDealForm();
   renderNoteChips();
+  initPasteBoxes();
 }
 
 checkAuthAndInit();
