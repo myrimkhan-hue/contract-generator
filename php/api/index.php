@@ -2,6 +2,9 @@
 // Фронт-контроллер API. Все /api/* маршруты приходят сюда (см. .htaccess).
 // Порт эндпоинтов из Node-версии (server.js).
 
+// Дата/номера документов всегда по времени Алматы, независимо от TZ сервера
+date_default_timezone_set('Asia/Almaty');
+
 require __DIR__ . '/../lib/companies.php';
 require __DIR__ . '/../lib/helpers.php';
 require __DIR__ . '/../lib/storage.php';
@@ -59,12 +62,19 @@ try {
     exit;
   }
   if ($segs === ['login'] && $method === 'POST') {
+    $wait = loginBlockedFor();
+    if ($wait > 0) {
+      jsonResponse(['error' => 'Слишком много неудачных попыток. Попробуйте через ' . ceil($wait / 60) . ' мин.'], 429);
+      exit;
+    }
     $b = body();
     if (authVerify(isset($b['password']) ? $b['password'] : '')) {
+      loginRegisterSuccess();
       authLogin();
       jsonResponse(['ok' => true]);
       exit;
     }
+    loginRegisterFail();
     jsonResponse(['error' => 'Неверный пароль.'], 401);
     exit;
   }

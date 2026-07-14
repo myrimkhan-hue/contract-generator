@@ -6,13 +6,10 @@ if (!defined('DATA_DIR')) {
   $envDir = getenv('DATA_DIR');
   define('DATA_DIR', $envDir ? $envDir : (__DIR__ . '/../data'));
 }
-define('FILES_DIR', DATA_DIR . '/files');
-define('HISTORY_FILE', DATA_DIR . '/history.json');
+define('FILES_DIR', DATA_DIR . '/files');          // легаси-кэш файлов (только чтение при скачивании)
+define('HISTORY_FILE', DATA_DIR . '/history.json'); // легаси; пишется только при восстановлении старых копий
 define('CONTACTS_FILE', DATA_DIR . '/contacts.json');
 define('COUNTERS_FILE', DATA_DIR . '/counters.json');
-define('MAX_HISTORY', 50);
-
-if (!is_dir(FILES_DIR)) @mkdir(FILES_DIR, 0775, true);
 
 // Атомарный счётчик по ключу (напр. по базовому номеру документа за день).
 // Возвращает порядковый номер: 1 для первого, 2 для второго и т.д.
@@ -50,7 +47,6 @@ function saveJson($file, $data) {
   file_put_contents($file, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
 }
 
-function loadHistory()  { return loadJson(HISTORY_FILE, []); }
 function loadContacts() { return loadJson(CONTACTS_FILE, []); }
 
 // === Реестр документов (метаданные + исходные данные для пересоздания файла) ===
@@ -105,16 +101,4 @@ function deleteDeal($id) {
   $deals = loadDeals();
   $filtered = array_values(array_filter($deals, function ($d) use ($id) { return $d['id'] !== $id; }));
   if (count($filtered) !== count($deals)) saveDeals($filtered);
-}
-
-// Сохранить документ на диск и добавить запись в начало истории
-function storeDocument($entry, $buffer) {
-  @file_put_contents(FILES_DIR . '/' . $entry['filename'], $buffer);
-  $history = loadHistory();
-  array_unshift($history, $entry);
-  while (count($history) > MAX_HISTORY) {
-    $old = array_pop($history);
-    @unlink(FILES_DIR . '/' . $old['filename']);
-  }
-  saveJson(HISTORY_FILE, $history);
 }

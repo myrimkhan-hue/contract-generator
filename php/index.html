@@ -2125,7 +2125,7 @@ async function loadHistory() {
     const registryTag = isZayavka && item.registry
       ? `<span class="type-tag registry" title="Нажмите, чтобы снять отметку" style="cursor:pointer" onclick="unmarkRegistry('${escapeHtml(item.filename)}')">✓ в реестре</span>`
       : '';
-    const sub = isZayavka && item.route ? `<div class="other" style="color:var(--muted);font-size:11px">${item.route}</div>` : '';
+    const sub = isZayavka && item.route ? `<div class="other" style="color:var(--muted);font-size:11px">${escapeHtml(item.route)}</div>` : '';
     // Для договоров — кнопка «Создать заявку к этому договору»
     const iso = item.dateISO || (item.date ? item.date.slice(0, 10) : '');
     const zayavkaBtn = isZayavka
@@ -2133,9 +2133,9 @@ async function loadHistory() {
       : `<a href="#" onclick="createZayavkaFromContract('${escapeHtml(item.number)}','${iso}');return false;" style="margin-left:12px">🚚 Создать заявку</a>`;
     return `
       <div class="history-item">
-        <div class="num">${item.number}${typeTag}${registryTag}</div>
-        <div class="meta">${dateStr} · ${item.ourCompany}</div>
-        <div class="other">↔ ${item.otherName}</div>
+        <div class="num">${escapeHtml(item.number)}${typeTag}${registryTag}</div>
+        <div class="meta">${dateStr} · ${escapeHtml(item.ourCompany)}</div>
+        <div class="other">↔ ${escapeHtml(item.otherName)}</div>
         ${sub}
         <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>${zayavkaBtn}
       </div>
