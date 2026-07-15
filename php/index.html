@@ -366,8 +366,9 @@
           <!-- Менеджер (только когда Заказчик) -->
           <div id="z-manager-block" class="form-grid" style="margin-top:14px;display:none">
             <div class="field">
-              <label>Менеджер (ФИО)</label>
-              <input type="text" id="z-manager-name" placeholder="Фамилия Имя Отчество">
+              <label>Менеджер (ФИО) — выберите из списка или впишите</label>
+              <input type="text" id="z-manager-name" list="manager-list" placeholder="Фамилия Имя Отчество" oninput="onManagerInput()">
+              <datalist id="manager-list"></datalist>
             </div>
             <div class="field">
               <label>Телефон менеджера</label>
@@ -1152,6 +1153,32 @@ function parsePasted(key) {
   const missed = Object.keys(REQ_FIELD_LABELS).filter(k => k !== 'signerShort' && k !== 'type' && !obj[k]);
   info.textContent = '✓ Распознано: ' + found.map(k => REQ_FIELD_LABELS[k]).join(', ')
     + (missed.length ? '. Не найдено: ' + missed.map(k => REQ_FIELD_LABELS[k]).join(', ') + ' — проверьте/заполните вручную.' : '.');
+}
+
+// === Менеджеры: имя → телефон (выбор из списка в заявке) ===
+// Чтобы добавить/изменить менеджера — правьте этот список.
+const MANAGERS = {
+  // 'Азамат': '+7 700 000 00 00',
+  // 'Оксана': '+7 701 000 00 00',
+};
+
+function initManagerList() {
+  const dl = document.getElementById('manager-list');
+  if (dl) dl.innerHTML = Object.keys(MANAGERS).map(n => `<option value="${escapeHtml(n)}">`).join('');
+}
+
+// При выборе менеджера из списка — подтянуть его телефон.
+// Ручной ввод телефона не затирается (заменяется пустое или прежнее автозначение).
+let managerPhoneAuto = '';
+function onManagerInput() {
+  const phone = MANAGERS[val('z-manager-name')];
+  if (!phone) return;
+  const el = document.getElementById('z-manager-phone');
+  const cur = (el.value || '').trim();
+  if (cur === '' || cur === managerPhoneAuto) {
+    el.value = phone;
+    managerPhoneAuto = phone;
+  }
 }
 
 // === Справочник банков Казахстана: БИК (SWIFT) → название ===
@@ -2407,6 +2434,7 @@ function initApp() {
   renderNoteChips();
   initPasteBoxes();
   loadAutoBackups();
+  initManagerList();
 }
 
 checkAuthAndInit();
