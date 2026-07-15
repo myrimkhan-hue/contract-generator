@@ -383,6 +383,20 @@ try {
 
     $zayavkaNumber = uniqueDocNumber(generateZayavkaNumber($our['prefix']));
     $dateStr = formatDateRu();
+
+    // Номер приложения к договору: сколько заявок уже привязано к нему + 1.
+    // Сохраняется в данных заявки — при пересоздании файла номер не меняется.
+    if ($contractNumber !== '') {
+      $appendix = 1;
+      foreach (loadDeals() as $d) {
+        if (isset($d['number']) && $d['number'] === $contractNumber) {
+          $appendix = (isset($d['zayavki']) && is_array($d['zayavki']) ? count($d['zayavki']) : 0) + 1;
+          break;
+        }
+      }
+      $b['_appendixNo'] = (string)$appendix;
+    }
+
     $res = buildZayavkaDoc($b, $zayavkaNumber, $dateStr);
 
     // Сохраняем полные исходные данные (файл пересоберём при повторном скачивании)

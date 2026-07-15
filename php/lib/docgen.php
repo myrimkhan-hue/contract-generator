@@ -136,6 +136,9 @@ function buildZayavkaDoc($input, $number, $dateStr) {
   $values = [
     'НОМЕР_ЗАЯВКИ' => $number,
     'ДАТА_ЗАЯВКИ' => $dateStr,
+    // Порядковый номер приложения к договору (считается в момент генерации,
+    // хранится в данных заявки — при пересоздании файла остаётся тем же)
+    'НОМЕР_ПРИЛОЖЕНИЯ' => $contractNumber !== '' ? pick($input, '_appendixNo', '1') : '—',
     'НОМЕР_ДОГОВОРА' => $contractNumber !== '' ? $contractNumber : '—',
     'ДАТА_ДОГОВОРА' => ($contractNumber !== '' && $contractDate !== '')
         ? formatDateRu(parseDateISO($contractDate)) : '—',
