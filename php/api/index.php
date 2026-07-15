@@ -120,9 +120,10 @@ try {
     // Иначе пересобираем из сохранённых данных
     $doc = findDocByFilename($safe);
     if (!$doc || empty($doc['input'])) { jsonResponse(['error' => 'Документ не найден'], 404); exit; }
-    $res = ($doc['type'] ?? '') === 'zayavka'
-      ? buildZayavkaDoc($doc['input'], $doc['number'], $doc['dateRu'])
-      : buildContractDoc($doc['input'], $doc['number'], $doc['dateRu']);
+    $type = isset($doc['type']) ? $doc['type'] : 'contract';
+    if ($type === 'zayavka')    $res = buildZayavkaDoc($doc['input'], $doc['number'], $doc['dateRu']);
+    elseif ($type === 'china')  $res = buildChinaDoc($doc['input'], $doc['number']);
+    else                        $res = buildContractDoc($doc['input'], $doc['number'], $doc['dateRu']);
     sendDocx($res['buffer'], $safe);
     exit;
   }
@@ -291,6 +292,44 @@ try {
     saveJson(BACKUPS_DIR . '/backup-' . date('Y-m-d') . '-pre-restore.json', buildBackupData());
     applyBackupData($data);
     jsonResponse(['ok' => true]);
+    exit;
+  }
+
+  // === Следующий номер китайской заявки (для подсказки в форме) ===
+  if ($segs === ['china-next'] && $method === 'GET') {
+    jsonResponse(['next' => chinaNextNumber()]);
+    exit;
+  }
+
+  // === POST /api/generate-china (заявка отдела Китая) ===
+  if ($method === 'POST' && $segs === ['generate-china']) {
+    $b = body();
+    $companies = our_companies();
+    $ourCompanyId = pick($b, 'ourCompanyId', '');
+    if (!isset($companies[$ourCompanyId])) {
+      jsonResponse(['error' => 'Не выбрана наша компания.'], 400); exit;
+    }
+    if (pick($b, 'consignee', '') === '') { jsonResponse(['error' => 'Не указан грузополучатель.'], 400); exit; }
+    if (pick($b, 'route', '') === '')     { jsonResponse(['error' => 'Не указан маршрут.'], 400); exit; }
+
+    // Сквозной номер: введённый вручную или следующий по счётчику
+    $number = chinaNumber((int)pick($b, 'number', 0));
+    $res = buildChinaDoc($b, $number);
+
+    addDoc([
+      'type' => 'china',
+      'number' => '№' . $number,
+      'date' => gmdate('Y-m-d\TH:i:s\Z'),
+      'dateISO' => date('Y-m-d'),
+      'dateRu' => formatDateRu(),
+      'ourCompany' => $companies[$ourCompanyId]['short'],
+      'otherName' => $res['otherName'],
+      'route' => $res['route'],
+      'filename' => $res['filename'],
+      'input' => $b,
+    ]);
+
+    sendDocx($res['buffer'], $res['filename'], 'X-China-Number', $number);
     exit;
   }
 

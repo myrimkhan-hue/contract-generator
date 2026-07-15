@@ -4,6 +4,61 @@
 
 define('TPL_CONTRACT', __DIR__ . '/../templates/template.docx');
 define('TPL_ZAYAVKA',  __DIR__ . '/../templates/template_zayavka.docx');
+define('TPL_CHINA',    __DIR__ . '/../templates/template_china.docx');
+
+// Заявка отдела перевозок из Китая (экспедирование). $number — сквозной номер (11, 12…).
+function buildChinaDoc($input, $number) {
+  $number = ltrim((string)$number, '№'); // в истории номер хранится как «№11»
+  $companies = our_companies();
+  $our = isset($companies[pick($input, 'ourCompanyId', '')]) ? $companies[pick($input, 'ourCompanyId', '')] : [];
+  $cargo  = arr($input, 'cargo');
+  $client = arr($input, 'client');
+  $contractDate = pick($input, 'contractDate', '');
+  // В шаблоне после даты стоит «г.», формат — 24.12.2025
+  $contractDateStr = $contractDate !== '' ? date('d.m.Y', parseDateISO($contractDate)) : '—';
+
+  $values = [
+    'НОМЕР_ЗАЯВКИ'   => $number,
+    'НОМЕР_ДОГОВОРА' => pick($input, 'contractNumber', '—'),
+    'ДАТА_ДОГОВОРА'  => $contractDateStr,
+    'МЕНЕДЖЕР'             => pick($input, 'manager', '—'),
+    'ГРУЗООТПРАВИТЕЛЬ'     => pick($input, 'shipper', '—'),
+    'ГРУЗОПОЛУЧАТЕЛЬ'      => pick($input, 'consignee', '—'),
+    'АДРЕС_ЗАБОРА'         => pick($input, 'pickupAddress', '—'),
+    'КОНТАКТ_СОГЛАСОВАНИЯ' => pick($input, 'contact', '—'),
+    'ГРУЗ_НАИМЕНОВАНИЕ' => pick($cargo, 'name', '—'),
+    'ГРУЗ_УПАКОВКА'     => pick($cargo, 'packing', ''),
+    'ГРУЗ_МЕСТ'         => pick($cargo, 'places', ''),
+    'ГРУЗ_ВЕС'          => pick($cargo, 'weight', ''),
+    'ГРУЗ_ОБЪЕМ'        => pick($cargo, 'volume', ''),
+    'ГРУЗ_УСЛОВИЯ'      => pick($cargo, 'conditions', 'нет'),
+    'МАРШРУТ'            => pick($input, 'route', '—'),
+    'СТОИМОСТЬ_USD'      => pick($input, 'costUsd', '—'),
+    'СТОИМОСТЬ_KZT'      => pick($input, 'costKzt', '—'),
+    'ЭКСПОРТ_ОФОРМЛЕНИЕ' => pick($input, 'export', 'Нет'),
+    'СТРАХОВКА'          => pick($input, 'insurance', 'Нет'),
+    'ДОП_УСЛУГИ'         => pick($input, 'extras', 'Нет'),
+    'УСЛУГИ_СВХ'         => pick($input, 'svh', 'Нет'),
+    'ВИД_ТРАНСПОРТА'     => pick($input, 'transport', '—'),
+    'ОБЩАЯ_СТАВКА'       => pick($input, 'totalRate', '—'),
+    'ТРАНЗИТ_ВРЕМЯ'      => pick($input, 'transit', '—'),
+    'УЧЕТНЫЙ_КУРС'       => pick($input, 'rate', '—'),
+    'КЛИЕНТ_ДОЛЖНОСТЬ'     => pick($client, 'position', 'Директор'),
+    'КЛИЕНТ_ПОДПИСАНТ'     => pick($client, 'signer', ''),
+    'ЭКСПЕДИТОР_ДОЛЖНОСТЬ' => 'Директор',
+    'ЭКСПЕДИТОР_ПОДПИСАНТ' => pick($our, 'signerShort', ''),
+  ];
+
+  $buffer = fillDocx(TPL_CHINA, $values);
+  $safeConsignee = safeName(pick($input, 'consignee', 'клиент'), 'клиент');
+  $filename = "Заявка_КНР_№{$number}_{$safeConsignee}.docx";
+  return [
+    'buffer'    => $buffer,
+    'filename'  => $filename,
+    'otherName' => pick($input, 'consignee', '—'),
+    'route'     => pick($input, 'route', ''),
+  ];
+}
 
 // Договор. $input = { ourCompanyId, ourRole, other }. $number, $dateStr — готовые.
 function buildContractDoc($input, $number, $dateStr) {

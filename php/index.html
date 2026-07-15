@@ -37,6 +37,7 @@
     --tag-zayavka-bg: #fef3e2;  --tag-zayavka-fg: #92400e;
     --tag-registry-bg: #e6f4ea; --tag-registry-fg: #1e7e34;
     --tag-manual-bg: #eeeeee;   --tag-manual-fg: #555555;
+    --tag-china-bg: #ede8f8;    --tag-china-fg: #5b3fa0;
     --radius: 10px;
     color-scheme: light;
   }
@@ -60,6 +61,7 @@
     --tag-zayavka-bg: #3d2f16;  --tag-zayavka-fg: #e5b775;
     --tag-registry-bg: #1f3526; --tag-registry-fg: #86d29d;
     --tag-manual-bg: #2c2b24;   --tag-manual-fg: #a09a8c;
+    --tag-china-bg: #2d2547;    --tag-china-fg: #baa8ea;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -146,6 +148,7 @@
   .type-tag.zayavka { background: var(--tag-zayavka-bg); color: var(--tag-zayavka-fg); }
   .type-tag.registry { background: var(--tag-registry-bg); color: var(--tag-registry-fg); }
   .type-tag.manual { background: var(--tag-manual-bg); color: var(--tag-manual-fg); }
+  .type-tag.china { background: var(--tag-china-bg); color: var(--tag-china-fg); }
 
   /* Подсветка поля с ошибкой валидации */
   .field input.invalid, .field select.invalid, .field textarea.invalid {
@@ -216,6 +219,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="contract" onclick="switchTab('contract')">📄 Договор</button>
     <button class="tab-btn" data-tab="zayavka" onclick="switchTab('zayavka')">🚚 Заявка</button>
+    <button class="tab-btn" data-tab="china" onclick="switchTab('china')">🚛 Заявка Китай</button>
     <button class="tab-btn" data-tab="deals" onclick="switchTab('deals')">🗄 База договоров</button>
   </div>
 
@@ -711,6 +715,150 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- ====== ЗАЯВКА КИТАЙ (экспедирование) ====== -->
+      <div id="tab-china" style="display:none">
+        <div class="panel">
+          <h2><span class="step-num">1</span> Основное</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Наша компания (Экспедитор) <span class="req">*</span></label>
+              <select id="cn-company"></select>
+            </div>
+            <div class="field">
+              <label>Номер заявки <span style="color:var(--muted);font-weight:400">(пусто — следующий автоматически)</span></label>
+              <input type="text" id="cn-number" inputmode="numeric" placeholder="авто">
+            </div>
+            <div class="field">
+              <label>Номер договора</label>
+              <input type="text" id="cn-contract-number" list="contract-numbers" oninput="onCnContractInput()" placeholder="напр. ALT-CL-1812/2025">
+            </div>
+            <div class="field">
+              <label>Дата договора</label>
+              <input type="date" id="cn-contract-date">
+            </div>
+            <div class="field full">
+              <label>Менеджер (ФИО)</label>
+              <input type="text" id="cn-manager" list="manager-list" placeholder="Фамилия Имя">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2><span class="step-num">2</span> Стороны и груз</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Грузоотправитель <span class="req">*</span></label>
+              <input type="text" id="cn-shipper" placeholder="BEIJING … CO., LTD">
+            </div>
+            <div class="field">
+              <label>Грузополучатель <span class="req">*</span></label>
+              <input type="text" id="cn-consignee" placeholder='ТОО «Клиент»'>
+            </div>
+            <div class="field full">
+              <label>Адрес забора груза</label>
+              <textarea id="cn-pickup" rows="2" placeholder="Контакт и адрес (можно на китайском)"></textarea>
+            </div>
+            <div class="field full">
+              <label>Контактное лицо для согласования вопросов перевозки</label>
+              <input type="text" id="cn-contact" placeholder="Имя и телефон">
+            </div>
+            <div class="field">
+              <label>Наименование груза <span class="req">*</span></label>
+              <input type="text" id="cn-cargo-name" placeholder="напр. картриджи и принтеры">
+            </div>
+            <div class="field">
+              <label>Маркировка, упаковка</label>
+              <input type="text" id="cn-cargo-packing" placeholder="коробки, паллеты…">
+            </div>
+            <div class="field">
+              <label>Количество мест</label>
+              <input type="text" id="cn-cargo-places" placeholder="напр. 7">
+            </div>
+            <div class="field">
+              <label>Вес (кг)</label>
+              <input type="text" id="cn-cargo-weight" placeholder="напр. 71,1">
+            </div>
+            <div class="field">
+              <label>Объём (м³)</label>
+              <input type="text" id="cn-cargo-volume" placeholder="напр. 0.31">
+            </div>
+            <div class="field">
+              <label>Особые условия, температурный режим</label>
+              <input type="text" id="cn-cargo-conditions" value="нет">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2><span class="step-num">3</span> Перевозка и стоимость</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Маршрут перевозки <span class="req">*</span></label>
+              <input type="text" id="cn-route" placeholder="напр. Hebei - Алматы">
+            </div>
+            <div class="field">
+              <label>Вид транспорта</label>
+              <input type="text" id="cn-transport" value="Авто, LTL">
+            </div>
+            <div class="field">
+              <label>Стоимость перевозки USD</label>
+              <input type="text" id="cn-cost-usd" placeholder="напр. 340$" oninput="syncCnTotal()">
+            </div>
+            <div class="field">
+              <label>Стоимость перевозки KZT</label>
+              <input type="text" id="cn-cost-kzt" placeholder="напр. 162 520 KZT">
+            </div>
+            <div class="field">
+              <label>Согласованная общая ставка</label>
+              <input type="text" id="cn-total" placeholder="по умолчанию = стоимость USD">
+            </div>
+            <div class="field">
+              <label>Учётный курс (тенге за 1 USD)</label>
+              <input type="text" id="cn-rate" placeholder="напр. 478">
+            </div>
+            <div class="field">
+              <label>Экспортное оформление</label>
+              <input type="text" id="cn-export" placeholder="напр. Да, по одному инвойсу">
+            </div>
+            <div class="field">
+              <label>Страховка</label>
+              <input type="text" id="cn-insurance" value="Нет">
+            </div>
+            <div class="field">
+              <label>Дополнительные услуги</label>
+              <input type="text" id="cn-extras" value="Нет">
+            </div>
+            <div class="field">
+              <label>Услуги СВХ</label>
+              <input type="text" id="cn-svh" value="Нет">
+            </div>
+            <div class="field full">
+              <label>Транзитное время</label>
+              <input type="text" id="cn-transit" value="Ориентировочно 15 дней">
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2><span class="step-num">4</span> Подписант клиента и генерация</h2>
+          <div class="form-grid">
+            <div class="field">
+              <label>Должность подписанта клиента</label>
+              <input type="text" id="cn-client-position" value="Директор">
+            </div>
+            <div class="field">
+              <label>ФИО подписанта клиента (кратко)</label>
+              <input type="text" id="cn-client-signer" placeholder="напр. Иванов И.И.">
+            </div>
+          </div>
+          <div class="actions" style="margin-top:14px">
+            <button class="btn btn-primary" id="cn-gen-btn" onclick="generateChina()">🚛 Создать заявку</button>
+            <button class="btn" onclick="resetChinaForm()">Сбросить</button>
+          </div>
+          <div class="status" id="cn-status"></div>
+        </div>
       </div>
 
       <!-- ====== БАЗА ДОГОВОРОВ ====== -->
@@ -1329,6 +1477,7 @@ async function duplicateDoc(filename) {
     if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'ошибка'); }
     const data = await res.json();
     if (data.type === 'zayavka') fillZayavkaFromInput(data.input || {});
+    else if (data.type === 'china') fillChinaFromInput(data.input || {});
     else fillContractFromInput(data.input || {});
   } catch (e) {
     alert('Не удалось загрузить данные документа: ' + e.message);
@@ -1401,6 +1550,145 @@ function fillZayavkaFromInput(inp) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// === Заявка Китай (экспедирование) ===
+async function loadChinaNext() {
+  try {
+    const res = await fetch('api/index.php?r=china-next');
+    const j = await res.json();
+    const el = document.getElementById('cn-number');
+    if (el && j.next) el.placeholder = 'авто: №' + j.next;
+  } catch (e) {}
+}
+
+// При выборе договора — подтянуть его дату (общий словарь дат по номерам)
+function onCnContractInput() {
+  const num = val('cn-contract-number');
+  if (contractDateByNumber[num]) {
+    document.getElementById('cn-contract-date').value = contractDateByNumber[num];
+  }
+}
+
+// Общая ставка по умолчанию повторяет стоимость USD
+function syncCnTotal() {
+  const el = document.getElementById('cn-total');
+  if (el) el.placeholder = val('cn-cost-usd') || 'по умолчанию = стоимость USD';
+}
+
+function chinaPayload() {
+  return {
+    ourCompanyId: val('cn-company'),
+    number: (val('cn-number') || '').replace(/\D/g, ''),
+    contractNumber: val('cn-contract-number'),
+    contractDate: val('cn-contract-date'),
+    manager: val('cn-manager'),
+    shipper: val('cn-shipper'),
+    consignee: val('cn-consignee'),
+    pickupAddress: val('cn-pickup'),
+    contact: val('cn-contact'),
+    cargo: {
+      name: val('cn-cargo-name'),
+      packing: val('cn-cargo-packing'),
+      places: val('cn-cargo-places'),
+      weight: val('cn-cargo-weight'),
+      volume: val('cn-cargo-volume'),
+      conditions: val('cn-cargo-conditions'),
+    },
+    route: val('cn-route'),
+    costUsd: val('cn-cost-usd'),
+    costKzt: val('cn-cost-kzt'),
+    export: val('cn-export') || 'Нет',
+    insurance: val('cn-insurance') || 'Нет',
+    extras: val('cn-extras') || 'Нет',
+    svh: val('cn-svh') || 'Нет',
+    transport: val('cn-transport'),
+    totalRate: val('cn-total') || val('cn-cost-usd'),
+    transit: val('cn-transit'),
+    rate: val('cn-rate'),
+    client: { position: val('cn-client-position') || 'Директор', signer: val('cn-client-signer') },
+  };
+}
+
+async function generateChina() {
+  if (!val('cn-consignee')) return showStatus('cn-status', 'Заполните: грузополучатель.', 'warn');
+  if (!val('cn-shipper'))   return showStatus('cn-status', 'Заполните: грузоотправитель.', 'warn');
+  if (!val('cn-route'))     return showStatus('cn-status', 'Заполните: маршрут перевозки.', 'warn');
+  if (!val('cn-cargo-name')) return showStatus('cn-status', 'Заполните: наименование груза.', 'warn');
+  const btn = document.getElementById('cn-gen-btn');
+  btn.disabled = true; btn.textContent = '⏳ Генерация...';
+  try {
+    const res = await fetch('api/index.php?r=generate-china', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(chinaPayload()),
+    });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+    const blob = await res.blob();
+    const num = res.headers.get('X-China-Number') || '';
+    const disposition = res.headers.get('Content-Disposition') || '';
+    let filename = `Заявка_КНР_№${num}.docx`;
+    const m = disposition.match(/filename\*=UTF-8''([^;]+)/);
+    if (m) filename = decodeURIComponent(m[1]);
+    downloadBlob(blob, filename);
+    showStatus('cn-status', `✓ Заявка №${num} сгенерирована и скачана.`, 'success');
+    document.getElementById('cn-number').value = '';
+    loadHistory();
+    loadChinaNext();
+  } catch (err) {
+    showStatus('cn-status', 'Ошибка: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🚛 Создать заявку';
+  }
+}
+
+function resetChinaForm() {
+  document.querySelectorAll('#tab-china input, #tab-china textarea').forEach(el => {
+    if (el.id === 'cn-cargo-conditions') el.value = 'нет';
+    else if (el.id === 'cn-insurance' || el.id === 'cn-extras' || el.id === 'cn-svh') el.value = 'Нет';
+    else if (el.id === 'cn-transport') el.value = 'Авто, LTL';
+    else if (el.id === 'cn-transit') el.value = 'Ориентировочно 15 дней';
+    else if (el.id === 'cn-client-position') el.value = 'Директор';
+    else el.value = '';
+  });
+  document.getElementById('cn-status').classList.remove('show');
+  loadChinaNext();
+}
+
+// Дублирование китайской заявки из истории
+function fillChinaFromInput(inp) {
+  switchTab('china');
+  if (inp.ourCompanyId) setVal('cn-company', inp.ourCompanyId);
+  // Номер оставляем пустым — присвоится следующий
+  setVal('cn-contract-number', inp.contractNumber);
+  setVal('cn-contract-date', inp.contractDate);
+  setVal('cn-manager', inp.manager);
+  setVal('cn-shipper', inp.shipper);
+  setVal('cn-consignee', inp.consignee);
+  setVal('cn-pickup', inp.pickupAddress);
+  setVal('cn-contact', inp.contact);
+  const c = inp.cargo || {};
+  setVal('cn-cargo-name', c.name);
+  setVal('cn-cargo-packing', c.packing);
+  setVal('cn-cargo-places', c.places);
+  setVal('cn-cargo-weight', c.weight);
+  setVal('cn-cargo-volume', c.volume);
+  setVal('cn-cargo-conditions', c.conditions);
+  setVal('cn-route', inp.route);
+  setVal('cn-cost-usd', inp.costUsd);
+  setVal('cn-cost-kzt', inp.costKzt);
+  setVal('cn-export', inp.export);
+  setVal('cn-insurance', inp.insurance);
+  setVal('cn-extras', inp.extras);
+  setVal('cn-svh', inp.svh);
+  setVal('cn-transport', inp.transport);
+  setVal('cn-total', inp.totalRate);
+  setVal('cn-transit', inp.transit);
+  setVal('cn-rate', inp.rate);
+  const cl = inp.client || {};
+  setVal('cn-client-position', cl.position);
+  setVal('cn-client-signer', cl.signer);
+  showStatus('cn-status', 'Форма заполнена данными старой заявки. Номер будет новым (следующим по счёту).', 'success');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // «В реестр» из истории: данные заявки хранятся на сервере — подтянуть и открыть форму
 async function openRegistryFromHistory(filename) {
   try {
@@ -1416,7 +1704,7 @@ async function openRegistryFromHistory(filename) {
 
 // === Вкладки ===
 function switchTab(tab) {
-  ['contract', 'zayavka', 'deals'].forEach(t => {
+  ['contract', 'zayavka', 'china', 'deals'].forEach(t => {
     const el = document.getElementById('tab-' + t);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
@@ -1449,6 +1737,12 @@ async function loadCompanies() {
   // База договоров — выбор нашей компании
   const dsel = document.getElementById('d-company');
   if (dsel) dsel.innerHTML = companies.map(c => `<option value="${c.id}">${c.short}</option>`).join('');
+  // Заявка Китай: Экспедитор (по умолчанию ALT Corp — договоры отдела на ней)
+  const cnsel = document.getElementById('cn-company');
+  if (cnsel) {
+    cnsel.innerHTML = companies.map(c => `<option value="${c.id}">${c.short}</option>`).join('');
+    if (companies.some(c => c.id === 'alt_corp')) cnsel.value = 'alt_corp';
+  }
 }
 
 function selectCompany(id) {
@@ -2351,9 +2645,12 @@ async function loadHistory() {
     const d = new Date(item.date);
     const dateStr = d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
     const isZayavka = item.type === 'zayavka';
+    const isChina = item.type === 'china';
     const typeTag = isZayavka
       ? '<span class="type-tag zayavka">Заявка</span>'
-      : '<span class="type-tag contract">Договор</span>';
+      : isChina
+        ? '<span class="type-tag china">Китай</span>'
+        : '<span class="type-tag contract">Договор</span>';
     // Отметка «в реестре» (клик — снять) либо ссылка отправки в реестр
     const registryTag = isZayavka && item.registry
       ? `<span class="type-tag registry" title="Нажмите, чтобы снять отметку" style="cursor:pointer" onclick="unmarkRegistry('${escapeHtml(item.filename)}')">✓ в реестре</span>`
@@ -2363,6 +2660,7 @@ async function loadHistory() {
     const iso = item.dateISO || (item.date ? item.date.slice(0, 10) : '');
     const zayavkaBtn = isZayavka
       ? (item.registry ? '' : `<a href="#" onclick="openRegistryFromHistory('${escapeHtml(item.filename)}');return false;" style="margin-left:12px">📋 В реестр</a>`)
+      : isChina ? ''
       : `<a href="#" onclick="createZayavkaFromContract('${escapeHtml(item.number)}','${iso}');return false;" style="margin-left:12px">🚚 Создать заявку</a>`;
     const dupBtn = `<a href="#" onclick="duplicateDoc('${escapeHtml(item.filename)}');return false;" title="Заполнить форму данными этого документа" style="margin-left:12px">⧉ Дублировать</a>`;
     return `
@@ -2439,6 +2737,7 @@ function initApp() {
   initPasteBoxes();
   loadAutoBackups();
   initManagerList();
+  loadChinaNext();
 }
 
 checkAuthAndInit();

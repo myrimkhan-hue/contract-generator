@@ -37,6 +37,28 @@ function uniqueDocNumber($base) {
   return $n <= 1 ? $base : $base . '/' . $n;
 }
 
+// Сквозной номер китайской заявки. Если номер введён вручную — принимаем его
+// и подтягиваем счётчик (следующее «авто» будет больше). Пусто — счётчик+1.
+function chinaNumber($requested = 0) {
+  $fp = @fopen(COUNTERS_FILE, 'c+');
+  if (!$fp) return $requested > 0 ? $requested : 1;
+  flock($fp, LOCK_EX);
+  $data = json_decode(stream_get_contents($fp), true);
+  if (!is_array($data)) $data = [];
+  $cur = isset($data['china']) ? (int)$data['china'] : 0;
+  $n = $requested > 0 ? $requested : $cur + 1;
+  $data['china'] = max($cur, $n);
+  ftruncate($fp, 0); rewind($fp);
+  fwrite($fp, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+  fflush($fp); flock($fp, LOCK_UN); fclose($fp);
+  return $n;
+}
+
+function chinaNextNumber() {
+  $data = loadJson(COUNTERS_FILE, []);
+  return (isset($data['china']) ? (int)$data['china'] : 0) + 1;
+}
+
 function loadJson($file, $fallback) {
   if (!is_file($file)) return $fallback;
   $data = json_decode(file_get_contents($file), true);
