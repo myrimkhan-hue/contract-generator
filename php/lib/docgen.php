@@ -133,12 +133,24 @@ function buildZayavkaDoc($input, $number, $dateStr) {
     ];
   }
 
+  // Заголовок документа. Заявка к договору: «ЗАЯВКА №N …» (N — счёт заявок
+  // этого договора, хранится в данных заявки) + «(Приложение № 1 к Договору …)».
+  // Одноразовая заявка без договора: «ДОГОВОР-ЗАЯВКА …» без блока приложения.
+  if ($contractNumber !== '') {
+    $appendixNo = pick($input, '_appendixNo', '1');
+    $contractDateRu = $contractDate !== '' ? formatDateRu(parseDateISO($contractDate)) : '—';
+    $zTitle = 'ЗАЯВКА №' . $appendixNo . ' НА ТРАНСПОРТНЫЕ УСЛУГИ № ' . $number . ' от ' . $dateStr . ' ';
+    $zAppendix = '(Приложение № 1 к Договору № ' . $contractNumber . ' от ' . $contractDateRu . ')';
+  } else {
+    $zTitle = 'ДОГОВОР-ЗАЯВКА НА ТРАНСПОРТНЫЕ УСЛУГИ № ' . $number . ' от ' . $dateStr;
+    $zAppendix = '';
+  }
+
   $values = [
+    'ЗАГОЛОВОК_ЗАЯВКИ' => $zTitle,
+    'ПРИЛОЖЕНИЕ_К' => $zAppendix,
     'НОМЕР_ЗАЯВКИ' => $number,
     'ДАТА_ЗАЯВКИ' => $dateStr,
-    // Порядковый номер приложения к договору (считается в момент генерации,
-    // хранится в данных заявки — при пересоздании файла остаётся тем же)
-    'НОМЕР_ПРИЛОЖЕНИЯ' => $contractNumber !== '' ? pick($input, '_appendixNo', '1') : '—',
     'НОМЕР_ДОГОВОРА' => $contractNumber !== '' ? $contractNumber : '—',
     'ДАТА_ДОГОВОРА' => ($contractNumber !== '' && $contractDate !== '')
         ? formatDateRu(parseDateISO($contractDate)) : '—',
