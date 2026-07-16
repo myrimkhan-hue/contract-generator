@@ -45,6 +45,8 @@ function buildChinaDoc($input, $number) {
     'УЧЕТНЫЙ_КУРС'       => pick($input, 'rate', '—'),
     'КЛИЕНТ_ДОЛЖНОСТЬ'     => pick($client, 'position', 'Директор'),
     'КЛИЕНТ_ПОДПИСАНТ'     => pick($client, 'signer', ''),
+    'КЛИЕНТ_БИН'           => pick($client, 'bin', '—'),
+    'КЛИЕНТ_ПОЧТА'         => pick($client, 'email', '—'),
     'ЭКСПЕДИТОР_ДОЛЖНОСТЬ' => 'Директор',
     'ЭКСПЕДИТОР_ПОДПИСАНТ' => pick($our, 'signerShort', ''),
     'ЭКСПЕДИТОР_БИН'       => pick($our, 'bin', '—'),

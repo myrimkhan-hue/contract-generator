@@ -852,6 +852,14 @@
               <label>ФИО подписанта клиента (кратко)</label>
               <input type="text" id="cn-client-signer" placeholder="напр. Иванов И.И.">
             </div>
+            <div class="field">
+              <label>БИН/ИИН клиента <span style="color:var(--muted);font-weight:400">(выводится под подписью — удобно для ЭДО)</span></label>
+              <input type="text" id="cn-client-bin" placeholder="12 цифр">
+            </div>
+            <div class="field">
+              <label>Email клиента</label>
+              <input type="text" id="cn-client-email" placeholder="info@client.kz">
+            </div>
           </div>
           <div class="actions" style="margin-top:14px">
             <button class="btn btn-primary" id="cn-gen-btn" onclick="generateChina()">🚛 Создать заявку</button>
@@ -1604,7 +1612,12 @@ function chinaPayload() {
     totalRate: val('cn-total') || val('cn-cost-usd'),
     transit: val('cn-transit'),
     rate: val('cn-rate'),
-    client: { position: val('cn-client-position') || 'Директор', signer: val('cn-client-signer') },
+    client: {
+      position: val('cn-client-position') || 'Директор',
+      signer: val('cn-client-signer'),
+      bin: val('cn-client-bin'),
+      email: val('cn-client-email'),
+    },
   };
 }
 
@@ -1685,6 +1698,8 @@ function fillChinaFromInput(inp) {
   const cl = inp.client || {};
   setVal('cn-client-position', cl.position);
   setVal('cn-client-signer', cl.signer);
+  setVal('cn-client-bin', cl.bin);
+  setVal('cn-client-email', cl.email);
   showStatus('cn-status', 'Форма заполнена данными старой заявки. Номер будет новым (следующим по счёту).', 'success');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
