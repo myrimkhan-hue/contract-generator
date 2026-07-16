@@ -47,6 +47,8 @@ function buildChinaDoc($input, $number) {
     'КЛИЕНТ_ПОДПИСАНТ'     => pick($client, 'signer', ''),
     'ЭКСПЕДИТОР_ДОЛЖНОСТЬ' => 'Директор',
     'ЭКСПЕДИТОР_ПОДПИСАНТ' => pick($our, 'signerShort', ''),
+    'ЭКСПЕДИТОР_БИН'       => pick($our, 'bin', '—'),
+    'ЭКСПЕДИТОР_ПОЧТА'     => pick($our, 'email', '—'),
   ];
 
   $buffer = fillDocx(TPL_CHINA, $values);
