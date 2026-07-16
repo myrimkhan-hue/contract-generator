@@ -405,6 +405,7 @@
               <label>Номер договора <span style="color:var(--muted);font-weight:400">(если заявка — приложение к договору)</span></label>
               <input type="text" id="z-contract-number" list="contract-numbers" oninput="onContractNumberInput()" placeholder="напр. AAA-EX-0101/2026 — или выберите из списка">
               <datalist id="contract-numbers"></datalist>
+              <div id="z-contract-hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
             </div>
             <div class="field full">
               <label>Дата договора <span style="color:var(--muted);font-weight:400">(по умолчанию сегодня; подставится при выборе договора)</span></label>
@@ -733,6 +734,7 @@
             <div class="field">
               <label>Номер договора</label>
               <input type="text" id="cn-contract-number" list="contract-numbers" oninput="onCnContractInput()" placeholder="напр. ALT-CL-1812/2025">
+              <div id="cn-contract-hint" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
             </div>
             <div class="field">
               <label>Дата договора</label>
@@ -1052,6 +1054,7 @@ let zSelectedCompanyId = null;
 let zayavkaRole = null; // 'customer' | 'executor'
 let contacts = [];      // справочник контрагентов
 let contractDateByNumber = {}; // номер договора → его дата (для авто-подстановки в заявке)
+let contractNameByNumber = {}; // номер договора → наименование контрагента
 let deals = [];         // база договоров
 let historyItems = [];  // последние документы (для списка номеров договоров в заявке)
 let editingDealId = null; // id редактируемого договора в базе
@@ -1574,12 +1577,29 @@ async function loadChinaNext() {
   } catch (e) {}
 }
 
-// При выборе договора — подтянуть его дату (общий словарь дат по номерам)
+// При выборе договора — дата, контрагент и данные клиента из базы
+let lastAppliedCnContract = '';
 function onCnContractInput() {
   const num = val('cn-contract-number');
   if (contractDateByNumber[num]) {
     document.getElementById('cn-contract-date').value = contractDateByNumber[num];
   }
+  const hint = document.getElementById('cn-contract-hint');
+  const deal = deals.find(d => d.number === num);
+  const cp = deal && deal.counterparty;
+  if (cp && cp.name && num !== lastAppliedCnContract) {
+    lastAppliedCnContract = num;
+    setVal('cn-consignee', cp.name);
+    setVal('cn-client-bin', cp.bin);
+    setVal('cn-client-email', cp.email);
+    setVal('cn-client-signer', cp.signerShort || cp.signerFull);
+    setVal('cn-client-position', cp.position);
+    if (hint) hint.textContent = '↔ ' + cp.name + ' — данные клиента подставлены из базы';
+    return;
+  }
+  const name = contractNameByNumber[num] || '';
+  if (hint) hint.textContent = name ? '↔ ' + name : '';
+  if (!num) lastAppliedCnContract = '';
 }
 
 // Общая ставка по умолчанию повторяет стоимость USD
@@ -1985,12 +2005,27 @@ function initZayavkaDates() {
   document.getElementById('z-contract-date').value = todayISO();
 }
 
-// При выборе/вводе номера договора — подставить дату этого договора (ISO) в календарь
+// При выборе/вводе номера договора: подставить дату, показать контрагента
+// и подтянуть его реквизиты из базы (компания, роль, сторона заявки).
+let lastAppliedContractNumber = '';
 function onContractNumberInput() {
   const num = val('z-contract-number');
   if (contractDateByNumber[num]) {
     document.getElementById('z-contract-date').value = contractDateByNumber[num];
   }
+  const hint = document.getElementById('z-contract-hint');
+  const name = contractNameByNumber[num] || '';
+  const deal = deals.find(d => d.number === num);
+  if (deal && deal.counterparty && deal.counterparty.name && num !== lastAppliedContractNumber) {
+    lastAppliedContractNumber = num;
+    if (deal.ourCompanyId) zSelectCompany(deal.ourCompanyId);
+    if (deal.ourRole) setZRole(deal.ourRole);
+    if (deal.ourRole) fillParty(deal.ourRole === 'executor' ? 'zcust' : 'zexec', deal.counterparty);
+    if (hint) hint.textContent = '↔ ' + deal.counterparty.name + ' — реквизиты контрагента подставлены из базы';
+    return;
+  }
+  if (hint) hint.textContent = name ? '↔ ' + name : '';
+  if (!num) lastAppliedContractNumber = '';
 }
 
 // «Создать заявку к договору» из истории: если договор есть в базе — подтянуть и реквизиты
@@ -2054,22 +2089,26 @@ async function loadDeals() {
 // договора нет в базе (старые/сброшенные записи). База имеет приоритет по дате.
 function refreshContractDatalist() {
   contractDateByNumber = {};
+  contractNameByNumber = {};
   const nums = [];
-  const add = (number, iso) => {
+  const add = (number, iso, name) => {
     if (!number) return;
     if (!(number in contractDateByNumber)) nums.push(number);
-    // не затираем уже известную (из базы) дату пустой
+    // не затираем уже известную (из базы) дату/имя пустыми
     if (!(number in contractDateByNumber) || (iso && !contractDateByNumber[number])) {
       contractDateByNumber[number] = iso || contractDateByNumber[number] || '';
     }
+    if (name && !contractNameByNumber[number]) contractNameByNumber[number] = name;
   };
-  // Сначала база (канонические даты), затем история как запасной источник
-  deals.forEach(d => add(d.number, d.dateISO || ''));
+  // Сначала база (канонические данные), затем история как запасной источник
+  deals.forEach(d => add(d.number, d.dateISO || '', (d.counterparty || {}).name || ''));
   historyItems.forEach(it => {
-    if (it.type !== 'zayavka') add(it.number, it.dateISO || (it.date ? it.date.slice(0, 10) : ''));
+    if (it.type === 'contract' || !it.type) add(it.number, it.dateISO || (it.date ? it.date.slice(0, 10) : ''), it.otherName || '');
   });
+  // В выпадающем списке рядом с номером показывается контрагент
   const dl = document.getElementById('contract-numbers');
-  if (dl) dl.innerHTML = nums.map(n => `<option value="${escapeHtml(n)}">`).join('');
+  if (dl) dl.innerHTML = nums.map(n =>
+    `<option value="${escapeHtml(n)}">${escapeHtml(contractNameByNumber[n] || '')}</option>`).join('');
 }
 
 function renderDeals() {
