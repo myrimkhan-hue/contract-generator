@@ -1022,6 +1022,8 @@
     <div class="history-panel">
       <div class="panel">
         <h2>Последние документы</h2>
+        <input type="text" id="history-search" oninput="onHistorySearch()" placeholder="🔎 Поиск по всей истории (номер, контрагент, маршрут)"
+          style="width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 11px;border-radius:6px;font-size:13px;font-family:inherit;margin-bottom:10px">
         <div class="history-list" id="history-list">
           <div class="history-empty">История пуста</div>
         </div>
@@ -2692,15 +2694,34 @@ function downloadBlob(blob, filename) {
 }
 
 // === История ===
+// Без запроса — последние 50 (и обновление словаря договоров);
+// с q — поиск по всей истории (до 2000 документов), словарь не трогаем.
 async function loadHistory() {
   const res = await fetch('api/index.php?r=history');
   const items = await res.json();
   historyItems = Array.isArray(items) ? items : [];
   // Номера договоров в заявке берутся из базы + истории
   refreshContractDatalist();
+  renderHistoryList(historyItems, false);
+}
+
+let historySearchTimer = null;
+function onHistorySearch() {
+  clearTimeout(historySearchTimer);
+  historySearchTimer = setTimeout(async () => {
+    const q = (val('history-search') || '').trim();
+    if (!q) { renderHistoryList(historyItems, false); return; }
+    try {
+      const res = await fetch('api/index.php?r=history&q=' + encodeURIComponent(q));
+      renderHistoryList(await res.json(), true);
+    } catch (e) {}
+  }, 300);
+}
+
+function renderHistoryList(items, isSearch) {
   const container = document.getElementById('history-list');
-  if (items.length === 0) {
-    container.innerHTML = '<div class="history-empty">История пуста</div>';
+  if (!Array.isArray(items) || items.length === 0) {
+    container.innerHTML = `<div class="history-empty">${isSearch ? 'Ничего не найдено' : 'История пуста'}</div>`;
     return;
   }
   container.innerHTML = items.map(item => {

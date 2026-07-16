@@ -103,9 +103,19 @@ try {
     exit;
   }
 
-  // === GET /api/history (последние документы, без тяжёлого поля input) ===
+  // === GET /api/history (последние документы; ?q= — поиск по ВСЕЙ истории) ===
   if ($method === 'GET' && $segs === ['history']) {
-    $recent = array_slice(loadDocs(), 0, 50);
+    $docs = loadDocs();
+    $q = isset($_GET['q']) ? trim(mb_strtolower($_GET['q'])) : '';
+    if ($q !== '') {
+      $docs = array_values(array_filter($docs, function ($d) use ($q) {
+        foreach (['number', 'otherName', 'route', 'ourCompany'] as $f) {
+          if (isset($d[$f]) && mb_stripos($d[$f], $q) !== false) return true;
+        }
+        return false;
+      }));
+    }
+    $recent = array_slice($docs, 0, 50);
     $out = array_map(function ($d) { unset($d['input']); return $d; }, $recent);
     jsonResponse($out);
     exit;
