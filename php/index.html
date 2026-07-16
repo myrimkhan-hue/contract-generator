@@ -149,6 +149,7 @@
   .type-tag.registry { background: var(--tag-registry-bg); color: var(--tag-registry-fg); }
   .type-tag.manual { background: var(--tag-manual-bg); color: var(--tag-manual-fg); }
   .type-tag.china { background: var(--tag-china-bg); color: var(--tag-china-fg); }
+  .type-tag.annulled { background: var(--err-soft); color: var(--danger); }
 
   /* Подсветка поля с ошибкой валидации */
   .field input.invalid, .field select.invalid, .field textarea.invalid {
@@ -1471,6 +1472,23 @@ function openRegistry() {
   if (lastZayavkaFilename) markRegistry(lastZayavkaFilename, true);
 }
 
+// Аннулировать документ / снять аннулирование (запись и файл сохраняются)
+async function annulDoc(filename, state) {
+  const msg = state
+    ? 'Аннулировать документ? Он останется в истории с пометкой «Аннулирован», файл можно будет скачать.'
+    : 'Снять аннулирование с документа?';
+  if (!confirm(msg)) return;
+  try {
+    await fetch('api/index.php?r=annul-mark', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, state })
+    });
+  } catch (e) {}
+  // обновить текущий вид (учитывая активный поиск)
+  const q = (val('history-search') || '').trim();
+  if (q) onHistorySearch(); else loadHistory();
+}
+
 // Поставить/снять отметку «отправлено в реестр» у заявки
 async function markRegistry(filename, state) {
   try {
@@ -2738,6 +2756,7 @@ function renderHistoryList(items, isSearch) {
     const registryTag = isZayavka && item.registry
       ? `<span class="type-tag registry" title="Нажмите, чтобы снять отметку" style="cursor:pointer" onclick="unmarkRegistry('${escapeHtml(item.filename)}')">✓ в реестре</span>`
       : '';
+    const annulledTag = item.annulled ? '<span class="type-tag annulled">Аннулирован</span>' : '';
     const sub = isZayavka && item.route ? `<div class="other" style="color:var(--muted);font-size:11px">${escapeHtml(item.route)}</div>` : '';
     // Для договоров — кнопка «Создать заявку к этому договору»
     const iso = item.dateISO || (item.date ? item.date.slice(0, 10) : '');
@@ -2746,13 +2765,17 @@ function renderHistoryList(items, isSearch) {
       : isChina ? ''
       : `<a href="#" onclick="createZayavkaFromContract('${escapeHtml(item.number)}','${iso}');return false;" style="margin-left:12px">🚚 Создать заявку</a>`;
     const dupBtn = `<a href="#" onclick="duplicateDoc('${escapeHtml(item.filename)}');return false;" title="Заполнить форму данными этого документа" style="margin-left:12px">⧉ Дублировать</a>`;
+    const annulBtn = item.annulled
+      ? `<a href="#" onclick="annulDoc('${escapeHtml(item.filename)}', false);return false;" style="margin-left:12px">↩ Восстановить</a>`
+      : `<a href="#" onclick="annulDoc('${escapeHtml(item.filename)}', true);return false;" style="margin-left:12px;color:var(--danger)">✕ Аннулировать</a>`;
+    const numStyle = item.annulled ? ' style="text-decoration:line-through;opacity:0.6"' : '';
     return `
       <div class="history-item">
-        <div class="num">${escapeHtml(item.number)}${typeTag}${registryTag}</div>
+        <div class="num"><span${numStyle}>${escapeHtml(item.number)}</span>${typeTag}${annulledTag}${registryTag}</div>
         <div class="meta">${dateStr} · ${escapeHtml(item.ourCompany)}</div>
         <div class="other">↔ ${escapeHtml(item.otherName)}</div>
         ${sub}
-        <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>${dupBtn}${zayavkaBtn}
+        <a href="api/index.php?r=history-file&name=${encodeURIComponent(item.filename)}" download>↓ Скачать</a>${dupBtn}${item.annulled ? '' : zayavkaBtn}${annulBtn}
       </div>
     `;
   }).join('');

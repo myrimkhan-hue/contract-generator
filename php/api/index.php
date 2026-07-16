@@ -138,6 +138,21 @@ try {
     exit;
   }
 
+  // === Аннулирование документа (обратимо; запись и файл сохраняются) ===
+  if ($segs === ['annul-mark'] && $method === 'POST') {
+    $b = body();
+    $filename = basename(pick($b, 'filename', ''));
+    if ($filename === '') { jsonResponse(['error' => 'Не указан файл.'], 400); exit; }
+    $state = !empty($b['state']);
+    $doc = updateDocByFilename($filename, [
+      'annulled'   => $state,
+      'annulledAt' => $state ? gmdate('Y-m-d\TH:i:s\Z') : null,
+    ]);
+    if (!$doc) { jsonResponse(['error' => 'Документ не найден'], 404); exit; }
+    jsonResponse(['ok' => true, 'annulled' => $state]);
+    exit;
+  }
+
   // === Отметка «отправлено в реестр перевозок» ===
   if ($segs === ['registry-mark'] && $method === 'POST') {
     $b = body();
