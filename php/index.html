@@ -800,7 +800,13 @@
             </div>
             <div class="field">
               <label>Вид транспорта</label>
-              <input type="text" id="cn-transport" value="Авто, LTL">
+              <select id="cn-transport">
+                <option value="Авто, LTL">Авто, LTL (сборный груз)</option>
+                <option value="Авто, FTL">Авто, FTL (полная загрузка)</option>
+                <option value="ЖД доставка">ЖД доставка</option>
+                <option value="Авиа доставка">Авиа доставка</option>
+                <option value="Мультимодальная перевозка">Мультимодальная перевозка</option>
+              </select>
             </div>
             <div class="field">
               <label>Стоимость перевозки USD</label>
@@ -1656,11 +1662,11 @@ function resetChinaForm() {
   document.querySelectorAll('#tab-china input, #tab-china textarea').forEach(el => {
     if (el.id === 'cn-cargo-conditions') el.value = 'нет';
     else if (el.id === 'cn-insurance' || el.id === 'cn-extras' || el.id === 'cn-svh') el.value = 'Нет';
-    else if (el.id === 'cn-transport') el.value = 'Авто, LTL';
     else if (el.id === 'cn-transit') el.value = 'Ориентировочно 15 дней';
     else if (el.id === 'cn-client-position') el.value = 'Директор';
     else el.value = '';
   });
+  document.getElementById('cn-transport').value = 'Авто, LTL';
   document.getElementById('cn-status').classList.remove('show');
   loadChinaNext();
 }
@@ -1752,11 +1758,13 @@ async function loadCompanies() {
   // База договоров — выбор нашей компании
   const dsel = document.getElementById('d-company');
   if (dsel) dsel.innerHTML = companies.map(c => `<option value="${c.id}">${c.short}</option>`).join('');
-  // Заявка Китай: Экспедитор (по умолчанию ALT Corp — договоры отдела на ней)
+  // Заявка Китай: Экспедитор — только AVA и ALT (Transit Trail с Китаем не работает).
+  // По умолчанию ALT Corp — договоры отдела на ней.
   const cnsel = document.getElementById('cn-company');
   if (cnsel) {
-    cnsel.innerHTML = companies.map(c => `<option value="${c.id}">${c.short}</option>`).join('');
-    if (companies.some(c => c.id === 'alt_corp')) cnsel.value = 'alt_corp';
+    const cnCompanies = companies.filter(c => c.id !== 'transit_trail');
+    cnsel.innerHTML = cnCompanies.map(c => `<option value="${c.id}">${c.short}</option>`).join('');
+    if (cnCompanies.some(c => c.id === 'alt_corp')) cnsel.value = 'alt_corp';
   }
 }
 

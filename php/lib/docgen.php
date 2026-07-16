@@ -43,6 +43,10 @@ function buildChinaDoc($input, $number) {
     'ОБЩАЯ_СТАВКА'       => pick($input, 'totalRate', '—'),
     'ТРАНЗИТ_ВРЕМЯ'      => pick($input, 'transit', '—'),
     'УЧЕТНЫЙ_КУРС'       => pick($input, 'rate', '—'),
+    // Банк для индексации курса — у каждой компании свой
+    'БАНК_ИНДЕКСАЦИИ'    => pick($input, 'ourCompanyId', '') === 'ava_solution'
+        ? 'АО «Банк ЦентрКредит» - https://www.bcc.kz'
+        : 'АО «Народный банк Казахстана» - https://halykbank.kz/ru',
     'КЛИЕНТ_ДОЛЖНОСТЬ'     => pick($client, 'position', 'Директор'),
     'КЛИЕНТ_ПОДПИСАНТ'     => pick($client, 'signer', ''),
     'КЛИЕНТ_БИН'           => pick($client, 'bin', '—'),
