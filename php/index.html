@@ -192,6 +192,31 @@
   .contact-bar select:focus { outline: none; border-color: var(--accent); background: var(--surface); }
   .btn-sm { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
   .btn-danger-outline { color: var(--danger); border-color: var(--line); }
+
+  /* ── Мобильная адаптация ───────────────────────────────── */
+  @media (max-width: 640px) {
+    .container { padding: 14px 12px 60px; }
+    header { flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding-bottom: 14px; }
+    header h1 { font-size: 19px; }
+    /* Вкладки: одна строка с горизонтальной прокруткой */
+    .tabs { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-btn { padding: 8px 12px; font-size: 13px; white-space: nowrap; flex: 0 0 auto; }
+    .panel { padding: 16px 14px; margin-bottom: 14px; }
+    /* 16px в полях — iOS не приближает экран при фокусе */
+    .field input, .field select, .field textarea, .contact-bar select,
+    .auth-card input { font-size: 16px; }
+    #history-search, #d-search { font-size: 16px !important; }
+    .actions { flex-wrap: wrap; }
+    .actions .btn { flex: 1 1 auto; }
+    .contact-bar { flex-wrap: wrap; }
+    .contact-bar select { flex: 1 1 100%; }
+    .roles { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .role { padding: 10px 6px; }
+    /* История на мобиле идёт под формой — без «прилипания» и без внутренней прокрутки */
+    .history-panel { position: static; }
+    .history-list { max-height: none; }
+  }
   .btn-danger-outline:hover:not(:disabled) { background: var(--err-soft); border-color: var(--danger); }
   .btn-danger-outline:disabled { opacity: 0.35; cursor: not-allowed; }
 </style>
